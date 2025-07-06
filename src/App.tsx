@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { BrowserRouter as Router } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
 import { DataProvider } from './contexts/DataContext'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
+import GoogleCallback from './components/Auth/GoogleCallback'
 import Header from './components/Layout/Header'
 import Sidebar from './components/Layout/Sidebar'
 import Marquee from './components/Layout/Marquee'
@@ -109,7 +110,10 @@ function App() {
     <Router>
       <AuthProvider>
         <LanguageProvider>
-          <AppContent />
+          <Routes>
+            <Route path="/auth/callback" element={<GoogleCallback />} />
+            <Route path="/*" element={<AppContent />} />
+          </Routes>
           <Toaster
             position="top-right"
             toastOptions={{

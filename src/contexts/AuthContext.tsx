@@ -8,9 +8,12 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, fullName: string) => Promise<void>
+  signUp: (email: string, fullName: string) => Promise<void>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
+  verifyOtp: (email: string, otp: string) => Promise<void>
+  setPassword: (password: string) => Promise<void>
+  resendOtp: (email: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   updateLanguage: (language: 'english' | 'hindi') => Promise<void>
 }
@@ -276,25 +279,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, fullName: string) => {
     setLoading(true)
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
-        password,
+        password: 'temporary_password', // This will be changed later
         options: {
           data: {
             full_name: fullName,
           },
+          emailRedirectTo: undefined, // Disable email confirmation redirect
         },
       })
       
       if (error) throw error
-      
-      // Create user and profile records immediately after signup
-      if (data.user) {
-        await createUserRecord(data.user.id, email, fullName)
-      }
       
       // Loading will be set to false by the auth state change listener
     } catch (error) {
@@ -303,14 +302,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const verifyOtp = async (email: string, otp: string) => {
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'signup'
+      })
+      
+      if (error) throw error
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const setPassword = async (password: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      })
+      
+      if (error) throw error
+      
+      // Sign out after setting password so user can login with new credentials
+      await supabase.auth.signOut()
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const resendOtp = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email
+      })
+      
+      if (error) throw error
+    } catch (error) {
+      throw error
+    }
+  }
+
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    })
-    if (error) throw error
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      })
+      if (error) throw error
+    } catch (error) {
+      throw error
+    }
   }
 
   const signOut = async () => {
@@ -400,6 +449,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signOut,
     signInWithGoogle,
+    verifyOtp,
+    setPassword,
+    resendOtp,
     updateProfile,
     updateLanguage,
   }
