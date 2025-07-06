@@ -103,23 +103,60 @@ const AdminDashboard: React.FC = () => {
 
   const fetchRecentApplications = async () => {
     try {
-      const { data, error } = await supabase
+      // First, get applications with basic info
+      const { data: applications, error: appsError } = await supabase
         .from('applications')
         .select(`
           *,
-          scholarship_forms (title),
-          users (
-            email,
-            profiles (full_name)
-          )
+          scholarship_forms (title)
         `)
         .order('submitted_at', { ascending: false })
         .limit(5)
 
-      if (error) throw error
-      setRecentApplications(data || [])
+      if (appsError) throw appsError
+
+      if (!applications || applications.length === 0) {
+        setRecentApplications([])
+        return
+      }
+
+      // Then get user and profile data separately
+      const userIds = applications.map(app => app.student_id)
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', userIds)
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', userIds)
+
+      if (usersError) {
+        console.error('Error fetching users:', usersError)
+      }
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError)
+      }
+
+      // Combine the data
+      const enrichedApplications = applications.map(app => {
+        const user = users?.find(u => u.id === app.student_id)
+        const profile = profiles?.find(p => p.user_id === app.student_id)
+        
+        return {
+          ...app,
+          users: user ? {
+            email: user.email,
+            profiles: profile ? { full_name: profile.full_name } : null
+          } : null
+        }
+      })
+
+      setRecentApplications(enrichedApplications)
     } catch (error) {
       console.error('Error fetching recent applications:', error)
+      setRecentApplications([])
     }
   }
 
