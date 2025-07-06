@@ -49,7 +49,7 @@ const AppContent: React.FC = () => {
     return <AuthForm onBackToLanding={() => setShowAuth(false)} />
   }
 
-  // User is authenticated, show dashboard
+  // User is authenticated, show appropriate dashboard
   const renderContent = () => {
     if (user.role === 'admin') {
       switch (activeTab) {
@@ -112,6 +112,7 @@ function App() {
         <LanguageProvider>
           <Routes>
             <Route path="/auth/callback" element={<GoogleCallback />} />
+            <Route path="/auth/reset-password" element={<GoogleCallback />} />
             <Route path="/*" element={<AppContent />} />
           </Routes>
           <Toaster
