@@ -280,11 +280,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const signUp = async (email: string, fullName: string) => {
-    setLoading(true)
     try {
       const { error } = await supabase.auth.signUp({
         email,
-        password: 'temporary_password', // This will be changed later
+        password: 'temporary_password_123', // Temporary password
         options: {
           data: {
             full_name: fullName,
@@ -294,23 +293,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (error) throw error
-      
-      // Loading will be set to false by the auth state change listener
     } catch (error) {
-      setLoading(false)
       throw error
     }
   }
 
   const verifyOtp = async (email: string, otp: string) => {
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
         type: 'signup'
       })
       
       if (error) throw error
+      
+      // Create user and profile records after successful OTP verification
+      if (data.user) {
+        await createUserRecord(
+          data.user.id, 
+          email, 
+          data.user.user_metadata?.full_name
+        )
+      }
     } catch (error) {
       throw error
     }
