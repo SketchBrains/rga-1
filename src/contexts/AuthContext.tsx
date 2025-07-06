@@ -141,12 +141,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('users')
           .select('*')
           .eq('id', userId)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('profiles')
           .select('*')
           .eq('user_id', userId)
-          .single()
+          .maybeSingle()
       ])
 
       const timeoutPromise = new Promise((_, reject) => 
