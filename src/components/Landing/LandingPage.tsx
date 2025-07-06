@@ -421,8 +421,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                 step: '1',
                 title: 'Register',
                 titleHindi: 'पंजीकरण',
-                description: 'Create your account on our portal',
-                descriptionHindi: 'हमारे पोर्टल पर अपना खाता बनाएं',
+                description: 'Create your account with email verification',
+                descriptionHindi: 'ईमेल सत्यापन के साथ अपना खाता बनाएं',
                 icon: Users
               },
               {

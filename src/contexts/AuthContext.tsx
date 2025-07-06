@@ -10,10 +10,10 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, fullName: string, password: string) => Promise<{ user: User | null; session: Session | null }>
   signOut: () => Promise<void>
-  signInWithGoogle: () => Promise<void>
   verifyOtp: (email: string, otp: string) => Promise<void>
   setPassword: (password: string) => Promise<void>
   resendOtp: (email: string) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   updateLanguage: (language: 'english' | 'hindi') => Promise<void>
 }
@@ -121,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const createUserRecord = async (userId: string, email: string, fullName: string, isGoogle: boolean = false) => {
+  const createUserRecord = async (userId: string, email: string, fullName: string) => {
     try {
       // Check if user already exists
       const { data: existingUser, error: checkError } = await supabase
@@ -168,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .insert({
           user_id: userId,
           full_name: fullName,
-          is_verified: isGoogle, // Google users are pre-verified
+          is_verified: true, // Email verified through OTP
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -245,8 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { user: newUserData, profile: newProfileData } = await createUserRecord(
             authUser.user.id, 
             authUser.user.email || '', 
-            authUser.user.user_metadata?.full_name || 'User',
-            authUser.user.identities?.some(id => id.provider === 'google')
+            authUser.user.user_metadata?.full_name || 'User'
           )
           userData = newUserData
           profileData = newProfileData
@@ -313,11 +312,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `http://localhost:5173/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
       
       if (error) throw new Error(`Auth signup failed: ${error.message}`)
+
+      if (data.user && !data.session) {
+        // User needs to verify email with OTP
+        return { user: null, session: null }
+      }
 
       if (data.user) {
         const { user: userData, profile: profileData } = await createUserRecord(
@@ -344,6 +348,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (error) throw new Error(`OTP verification failed: ${error.message}`)
+      
+      // After successful OTP verification, the user should be signed in
+      if (data.user) {
+        await fetchUserData(data.user.id)
+      }
     } catch (error) {
       console.error('OTP verification error:', error)
       throw error
@@ -379,21 +388,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signInWithGoogle = async () => {
+  const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `http://localhost:5173/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
       })
-      if (error) throw new Error(`Google sign-in failed: ${error.message}`)
+      
+      if (error) throw new Error(`Password reset failed: ${error.message}`)
     } catch (error) {
-      console.error('Google sign-in error:', error)
+      console.error('Password reset error:', error)
       throw error
     }
   }
@@ -481,10 +484,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
-    signInWithGoogle,
     verifyOtp,
     setPassword,
     resendOtp,
+    resetPassword,
     updateProfile,
     updateLanguage,
   }

@@ -1,18 +1,17 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { BookOpen, Mail, Lock, User, Chrome, ArrowLeft, Globe, Shield, Key } from 'lucide-react'
+import { BookOpen, Mail, Lock, User, ArrowLeft, Globe, Shield, Key, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface AuthFormProps {
   onBackToLanding: () => void
 }
 
-type AuthStep = 'login' | 'signup' | 'verify-otp' | 'set-password'
+type AuthStep = 'login' | 'signup' | 'verify-otp' | 'forgot-password' | 'reset-password'
 
 const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
   const [currentStep, setCurrentStep] = useState<AuthStep>('login')
-  const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
@@ -26,10 +25,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
   const { 
     signIn, 
     signUp, 
-    signInWithGoogle, 
     verifyOtp, 
     setPassword,
-    resendOtp 
+    resendOtp,
+    resetPassword
   } = useAuth()
   const { language, setLanguage, t } = useLanguage()
 
@@ -75,9 +74,15 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     }
 
     try {
-      await signUp(formData.email, formData.fullName, formData.password)
-      setCurrentStep('verify-otp')
-      toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
+      const result = await signUp(formData.email, formData.fullName, formData.password)
+      if (!result.session) {
+        // User needs to verify email with OTP
+        setCurrentStep('verify-otp')
+        toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
+      } else {
+        // User is automatically signed in
+        toast.success(language === 'hindi' ? 'खाता सफलतापूर्वक बनाया गया!' : 'Account created successfully!')
+      }
     } catch (error: any) {
       const errorMessage =
         error.message === 'Email already registered'
@@ -97,10 +102,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
     try {
       await verifyOtp(formData.email, formData.otp)
-      toast.success('Email verified! You can now log in.')
-      setCurrentStep('login')
-      setIsLogin(true)
-      setFormData({ ...formData, password: '', otp: '' })
+      toast.success('Email verified successfully!')
+      // User should be automatically signed in after OTP verification
     } catch (error: any) {
       toast.error(error.message || 'Invalid OTP')
     } finally {
@@ -108,40 +111,19 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     }
   }
 
-  const handleSetPassword = async (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (formData.newPassword !== formData.confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
-
-    if (formData.newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters')
-      return
-    }
-
     setLoading(true)
 
     try {
-      await setPassword(formData.newPassword)
-      toast.success('Password set successfully! Please login.')
+      await resetPassword(formData.email)
+      toast.success(language === 'hindi' 
+        ? 'पासवर्ड रीसेट लिंक आपके ईमेल पर भेजा गया है'
+        : 'Password reset link sent to your email')
       setCurrentStep('login')
-      setIsLogin(true)
-      setFormData({ ...formData, password: '', newPassword: '', confirmPassword: '', otp: '' })
     } catch (error: any) {
-      toast.error(error.message || 'Failed to set password')
+      toast.error(error.message || 'Failed to send reset email')
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true)
-      await signInWithGoogle()
-    } catch (error: any) {
-      toast.error(error.message || 'Google sign in failed')
       setLoading(false)
     }
   }
@@ -166,8 +148,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         return language === 'hindi' ? 'खाता बनाएं' : 'Create Account'
       case 'verify-otp':
         return language === 'hindi' ? 'ईमेल सत्यापित करें' : 'Verify Email'
-      case 'set-password':
-        return language === 'hindi' ? 'पासवर्ड सेट करें' : 'Set Password'
+      case 'forgot-password':
+        return language === 'hindi' ? 'पासवर्ड भूल गए' : 'Forgot Password'
+      case 'reset-password':
+        return language === 'hindi' ? 'पासवर्ड रीसेट करें' : 'Reset Password'
       default:
         return 'Authentication'
     }
@@ -187,12 +171,28 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         return language === 'hindi' 
           ? 'आपके ईमेल पर भेजा गया OTP दर्ज करें'
           : 'Enter the OTP sent to your email'
-      case 'set-password':
+      case 'forgot-password':
         return language === 'hindi' 
-          ? 'अपने खाते के लिए पासवर्ड सेट करें'
-          : 'Set a password for your account'
+          ? 'पासवर्ड रीसेट करने के लिए अपना ईमेल दर्ज करें'
+          : 'Enter your email to reset password'
+      case 'reset-password':
+        return language === 'hindi' 
+          ? 'अपना नया पासवर्ड सेट करें'
+          : 'Set your new password'
       default:
         return ''
+    }
+  }
+
+  const getStepIcon = () => {
+    switch (currentStep) {
+      case 'verify-otp':
+        return <Mail className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+      case 'forgot-password':
+      case 'reset-password':
+        return <Key className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+      default:
+        return <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
     }
   }
 
@@ -203,11 +203,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         <div className="flex items-center justify-between">
           <button
             onClick={() => {
-              if (currentStep === 'verify-otp' || currentStep === 'set-password') {
+              if (currentStep === 'verify-otp') {
                 setCurrentStep('signup')
               } else if (currentStep === 'signup') {
                 setCurrentStep('login')
-                setIsLogin(true)
+              } else if (currentStep === 'forgot-password') {
+                setCurrentStep('login')
               } else {
                 onBackToLanding()
               }
@@ -233,13 +234,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         <div className="text-center">
           <div className="flex justify-center">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-full flex items-center justify-center">
-              {currentStep === 'verify-otp' ? (
-                <Mail className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-              ) : currentStep === 'set-password' ? (
-                <Key className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-              ) : (
-                <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-              )}
+              {getStepIcon()}
             </div>
           </div>
           <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-bold text-gray-900">
@@ -297,6 +292,16 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 </div>
               </div>
 
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep('forgot-password')}
+                  className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+                >
+                  {language === 'hindi' ? 'पासवर्ड भूल गए?' : 'Forgot Password?'}
+                </button>
+              </div>
+
               <div>
                 <button
                   type="submit"
@@ -310,36 +315,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 </button>
               </div>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">
-                    {language === 'hindi' ? 'या' : 'Or'}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="w-full flex justify-center items-center py-2 sm:py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
-                >
-                  <Chrome className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  {language === 'hindi' ? 'Google से लॉगिन करें' : 'Sign in with Google'}
-                </button>
-              </div>
-
               <div className="text-center">
                 <button
                   type="button"
-                  onClick={() => {
-                    setCurrentStep('signup')
-                    setIsLogin(false)
-                  }}
+                  onClick={() => setCurrentStep('signup')}
                   className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
                 >
                   {language === 'hindi' ? 'खाता नहीं है? साइन अप करें' : "Don't have an account? Sign up"}
@@ -421,36 +400,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 </button>
               </div>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">
-                    {language === 'hindi' ? 'या' : 'Or'}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="w-full flex justify-center items-center py-2 sm:py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
-                >
-                  <Chrome className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  {language === 'hindi' ? 'Google से साइन अप करें' : 'Sign up with Google'}
-                </button>
-              </div>
-
               <div className="text-center">
                 <button
                   type="button"
-                  onClick={() => {
-                    setCurrentStep('login')
-                    setIsLogin(true)
-                  }}
+                  onClick={() => setCurrentStep('login')}
                   className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
                 >
                   {language === 'hindi' ? 'पहले से खाता है? लॉगिन करें' : 'Already have an account? Sign in'}
@@ -518,55 +471,35 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
             </form>
           )}
 
-          {/* Set Password Form */}
-          {currentStep === 'set-password' && (
-            <form className="space-y-4 sm:space-y-6" onSubmit={handleSetPassword}>
+          {/* Forgot Password Form */}
+          {currentStep === 'forgot-password' && (
+            <form className="space-y-4 sm:space-y-6" onSubmit={handleForgotPassword}>
               <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Key className="w-8 h-8 text-green-600" />
+                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Key className="w-8 h-8 text-orange-600" />
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
                   {language === 'hindi' 
-                    ? 'अपने खाते के लिए एक मजबूत पासवर्ड सेट करें'
-                    : 'Set a strong password for your account'}
+                    ? 'अपना ईमेल पता दर्ज करें और हम आपको पासवर्ड रीसेट लिंक भेजेंगे'
+                    : 'Enter your email address and we\'ll send you a password reset link'}
                 </p>
               </div>
 
               <div>
-                <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
-                  {language === 'hindi' ? 'नया पासवर्ड' : 'New Password'}
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  {language === 'hindi' ? 'ईमेल पता' : 'Email Address'}
                 </label>
                 <div className="mt-1 relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <input
-                    id="newPassword"
-                    name="newPassword"
-                    type="password"
+                    id="email"
+                    name="email"
+                    type="email"
                     required
-                    minLength={6}
-                    value={formData.newPassword}
+                    value={formData.email}
                     onChange={handleInputChange}
                     className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                    placeholder={language === 'hindi' ? 'कम से कम 6 अक्षर' : 'At least 6 characters'}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  {language === 'hindi' ? 'पासवर्ड की पुष्टि करें' : 'Confirm Password'}
-                </label>
-                <div className="mt-1 relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                    placeholder={language === 'hindi' ? 'पासवर्ड दोबारा दर्ज करें' : 'Re-enter password'}
+                    placeholder={language === 'hindi' ? 'आपका ईमेल पता' : 'Your email address'}
                   />
                 </div>
               </div>
@@ -575,12 +508,22 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {loading 
-                    ? (language === 'hindi' ? 'सेट कर रहे हैं...' : 'Setting password...')
-                    : (language === 'hindi' ? 'पासवर्ड सेट करें' : 'Set Password')
+                    ? (language === 'hindi' ? 'भेजा जा रहा है...' : 'Sending...')
+                    : (language === 'hindi' ? 'रीसेट लिंक भेजें' : 'Send Reset Link')
                   }
+                </button>
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep('login')}
+                  className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+                >
+                  {language === 'hindi' ? 'लॉगिन पर वापस जाएं' : 'Back to Login'}
                 </button>
               </div>
             </form>
