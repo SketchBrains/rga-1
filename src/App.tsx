@@ -26,6 +26,8 @@ const AppContent: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  console.log('AppContent render - user:', user, 'loading:', loading)
+
   // Show loading screen with timeout
   if (loading) {
     return (
@@ -50,6 +52,8 @@ const AppContent: React.FC = () => {
   }
 
   // User is authenticated, show appropriate dashboard
+  console.log('User is authenticated, role:', user.role)
+  
   const renderContent = () => {
     if (user.role === 'admin') {
       switch (activeTab) {

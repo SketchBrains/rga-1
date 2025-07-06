@@ -123,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserData = async (userId: string) => {
     try {
-      setLoading(true)
+      console.log('Fetching user data for:', userId)
       
       const cached = userDataCache.get(userId)
       const now = Date.now()
@@ -136,7 +136,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
 
-      const fetchPromise = Promise.all([
+      // Fetch user and profile data
+      const [userResult, profileResult] = await Promise.all([
         supabase
           .from('users')
           .select('*')
@@ -149,30 +150,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .maybeSingle()
       ])
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 5000)
-      )
-
-      const [userResult, profileResult] = await Promise.race([
-        fetchPromise,
-        timeoutPromise
-      ]) as any
-
       let userData = null
       let profileData = null
 
       if (userResult.data && !userResult.error) {
         userData = userResult.data
-      } else if (userResult.error && !userResult.error.message.includes('No rows')) {
-        console.error('Error fetching user data:', userResult.error.message, userResult.error)
+        console.log('User data fetched:', userData)
+      } else if (userResult.error) {
+        console.error('Error fetching user data:', userResult.error)
+        // If user doesn't exist in our database, create it
+        if (userResult.error.code === 'PGRST116') {
+          console.log('User not found in database, will be created by trigger')
+        }
       }
 
       if (profileResult.data && !profileResult.error) {
         profileData = profileResult.data
-      } else if (profileResult.error && !profileResult.error.message.includes('No rows')) {
-        console.error('Error fetching profile data:', profileResult.error.message, profileResult.error)
+        console.log('Profile data fetched:', profileData)
+      } else if (profileResult.error) {
+        console.error('Error fetching profile data:', profileResult.error)
+        if (profileResult.error.code === 'PGRST116') {
+          console.log('Profile not found in database, will be created by trigger')
+        }
       }
 
+      // If we don't have user data, wait a moment for the trigger to create it
+      if (!userData) {
+        console.log('Waiting for user creation trigger...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        const { data: retryUserData, error: retryUserError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()
+          
+        if (retryUserData && !retryUserError) {
+          userData = retryUserData
+          console.log('User data found after retry:', userData)
+        }
+      }
+
+      // If we don't have profile data, wait a moment for the trigger to create it
+      if (!profileData) {
+        console.log('Waiting for profile creation trigger...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        const { data: retryProfileData, error: retryProfileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle()
+          
+        if (retryProfileData && !retryProfileError) {
+          profileData = retryProfileData
+          console.log('Profile data found after retry:', profileData)
+        }
+      }
+
+      // Cache the data
       userDataCache.set(userId, {
         user: userData,
         profile: profileData,
@@ -181,23 +217,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(userData)
       setProfile(profileData)
+      console.log('User and profile data set successfully')
     } catch (error) {
       console.error('Error fetching user data:', error)
     } finally {
       setLoading(false)
+      console.log('Loading set to false')
     }
   }
 
   const signIn = async (email: string, password: string) => {
-    setLoading(true)
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
       if (error) throw new Error(`Sign-in failed: ${error.message}`)
+      // Don't set loading here - let the auth state change handler manage it
     } catch (error) {
-      setLoading(false)
       throw error
     }
   }
@@ -252,9 +289,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw new Error(`OTP verification failed: ${error.message}`)
       
       // After successful OTP verification, the user should be signed in
-      if (data.user) {
-        await fetchUserData(data.user.id)
-      }
+      // The auth state change handler will fetch user data
     } catch (error) {
       console.error('OTP verification error:', error)
       throw error
@@ -304,7 +339,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const signOut = async () => {
-    setLoading(true)
     try {
       if (user?.id) {
         userDataCache.delete(user.id)
@@ -314,12 +348,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw new Error(`Sign-out failed: ${error.message}`)
     } catch (error) {
       console.error('Error signing out:', error)
-    } finally {
-      setSession(null)
-      setUser(null)
-      setProfile(null)
-      setLoading(false)
     }
+    // Don't manually set states here - let the auth state change handler manage it
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
