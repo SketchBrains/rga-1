@@ -3,6 +3,7 @@ import { BrowserRouter as Router } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
+import { DataProvider } from './contexts/DataContext'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
 import Header from './components/Layout/Header'
@@ -81,23 +82,25 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header onMenuClick={() => setSidebarOpen(true)} />
-      <Marquee />
-      <div className="flex">
-        <Sidebar 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
-        <main className="flex-1 overflow-auto min-h-screen lg:ml-0">
-          <div className="p-4 sm:p-6">
-            {renderContent()}
-          </div>
-        </main>
+    <DataProvider>
+      <div className="min-h-screen bg-gray-50">
+        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Marquee />
+        <div className="flex">
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
+          <main className="flex-1 overflow-auto min-h-screen lg:ml-0">
+            <div className="p-4 sm:p-6">
+              {renderContent()}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </DataProvider>
   )
 }
 

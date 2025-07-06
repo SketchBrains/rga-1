@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { 
   FileText, 
@@ -17,71 +18,25 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-interface Document {
-  id: string
-  application_id: string
-  field_id: string
-  file_name: string
-  file_url: string
-  file_type: string
-  file_size: number
-  uploaded_by: string
-  created_at: string
-  applications: {
-    scholarship_forms: {
-      title: string
-      title_hindi?: string
-    }
-  }
-  form_fields: {
-    field_label: string
-    field_label_hindi?: string
-  }
-}
-
 const StudentDocuments: React.FC = () => {
-  const [documents, setDocuments] = useState<Document[]>([])
-  const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([])
-  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
+  const { documents, loadingDocuments, fetchDocuments } = useData()
+  const { language, t } = useLanguage()
+  
+  const [filteredDocuments, setFilteredDocuments] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [fileTypeFilter, setFileTypeFilter] = useState('all')
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([])
-  const { user } = useAuth()
-  const { language, t } = useLanguage()
 
   useEffect(() => {
     if (user) {
       fetchDocuments()
     }
-  }, [user])
+  }, [user, fetchDocuments])
 
   useEffect(() => {
     filterDocuments()
   }, [documents, searchTerm, fileTypeFilter])
-
-  const fetchDocuments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select(`
-          *,
-          applications (
-            scholarship_forms (title, title_hindi)
-          ),
-          form_fields (field_label, field_label_hindi)
-        `)
-        .eq('uploaded_by', user?.id)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setDocuments(data || [])
-    } catch (error) {
-      console.error('Error fetching documents:', error)
-      toast.error('Failed to load documents')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const filterDocuments = () => {
     let filtered = documents
@@ -222,7 +177,7 @@ const StudentDocuments: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  if (loading) {
+  if (loadingDocuments && documents.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

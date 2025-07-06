@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { supabase, ScholarshipForm } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { 
   GraduationCap, 
@@ -20,62 +21,43 @@ import {
 import toast from 'react-hot-toast'
 
 const StudentDashboard: React.FC = () => {
-  const [scholarshipForms, setScholarshipForms] = useState<ScholarshipForm[]>([])
-  const [applications, setApplications] = useState<any[]>([])
+  const { user, profile } = useAuth()
+  const { 
+    scholarshipForms, 
+    loadingScholarshipForms, 
+    fetchScholarshipForms,
+    applications,
+    loadingApplications,
+    fetchApplications
+  } = useData()
+  const { language, t } = useLanguage()
+  
   const [stats, setStats] = useState({
     totalApplications: 0,
     pendingApplications: 0,
     approvedApplications: 0,
     rejectedApplications: 0
   })
-  const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<string | null>(null)
-  const { user, profile } = useAuth()
-  const { language, t } = useLanguage()
 
   useEffect(() => {
     if (user) {
-      fetchData()
+      // Fetch data using the cached data context
+      fetchScholarshipForms()
+      fetchApplications()
     }
-  }, [user])
+  }, [user, fetchScholarshipForms, fetchApplications])
 
-  const fetchData = async () => {
-    try {
-      // Fetch scholarship forms
-      const { data: forms, error: formsError } = await supabase
-        .from('scholarship_forms')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
+  useEffect(() => {
+    // Calculate stats from applications
+    const stats = applications.reduce((acc, app) => {
+      acc.totalApplications++
+      acc[`${app.status}Applications`]++
+      return acc
+    }, { totalApplications: 0, pendingApplications: 0, approvedApplications: 0, rejectedApplications: 0, holdApplications: 0 })
 
-      if (formsError) throw formsError
-
-      // Fetch user applications
-      const { data: apps, error: appsError } = await supabase
-        .from('applications')
-        .select('*')
-        .eq('student_id', user?.id)
-
-      if (appsError) throw appsError
-
-      setScholarshipForms(forms || [])
-      setApplications(apps || [])
-
-      // Calculate stats
-      const stats = (apps || []).reduce((acc, app) => {
-        acc.totalApplications++
-        acc[`${app.status}Applications`]++
-        return acc
-      }, { totalApplications: 0, pendingApplications: 0, approvedApplications: 0, rejectedApplications: 0, holdApplications: 0 })
-
-      setStats(stats)
-    } catch (error) {
-      console.error('Error fetching data:', error)
-      toast.error('Failed to load data')
-    } finally {
-      setLoading(false)
-    }
-  }
+    setStats(stats)
+  }, [applications])
 
   const getApplicationStatus = (formId: string) => {
     const application = applications.find(app => app.form_id === formId)
@@ -109,7 +91,8 @@ const StudentDashboard: React.FC = () => {
       if (error) throw error
 
       toast.success('Application submitted successfully!')
-      fetchData() // Refresh data
+      // Refresh applications data
+      fetchApplications()
     } catch (error) {
       console.error('Error applying to form:', error)
       toast.error('Failed to submit application')
@@ -168,7 +151,9 @@ const StudentDashboard: React.FC = () => {
     </div>
   )
 
-  if (loading) {
+  const isLoading = loadingScholarshipForms || loadingApplications
+
+  if (isLoading && scholarshipForms.length === 0 && applications.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600"></div>

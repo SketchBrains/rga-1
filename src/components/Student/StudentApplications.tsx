@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { 
   FileText, 
@@ -16,77 +17,35 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-interface Application {
-  id: string
-  form_id: string
-  status: 'pending' | 'approved' | 'rejected' | 'hold'
-  submitted_at: string
-  reviewed_at?: string
-  admin_notes?: string
-  scholarship_forms: {
-    title: string
-    title_hindi?: string
-    education_level: string
-  }
-}
-
 const StudentApplications: React.FC = () => {
-  const [applications, setApplications] = useState<Application[]>([])
-  const [availableForms, setAvailableForms] = useState<any[]>([])
-  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
-  const [applicationDetails, setApplicationDetails] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [applying, setApplying] = useState<string | null>(null)
   const { user } = useAuth()
+  const { 
+    applications, 
+    loadingApplications, 
+    fetchApplications,
+    scholarshipForms,
+    fetchScholarshipForms
+  } = useData()
   const { language, t } = useLanguage()
+  
+  const [availableForms, setAvailableForms] = useState<any[]>([])
+  const [selectedApplication, setSelectedApplication] = useState<any>(null)
+  const [applicationDetails, setApplicationDetails] = useState<any>(null)
+  const [applying, setApplying] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
       fetchApplications()
-      fetchAvailableForms()
+      fetchScholarshipForms()
     }
-  }, [user])
+  }, [user, fetchApplications, fetchScholarshipForms])
 
-  const fetchApplications = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('applications')
-        .select(`
-          *,
-          scholarship_forms (title, title_hindi, education_level)
-        `)
-        .eq('student_id', user?.id)
-        .order('submitted_at', { ascending: false })
-
-      if (error) throw error
-      setApplications(data || [])
-    } catch (error) {
-      console.error('Error fetching applications:', error)
-      toast.error('Failed to load applications')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchAvailableForms = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('scholarship_forms')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      
-      // Filter out forms that user has already applied to
-      const appliedFormIds = applications.map(app => app.form_id)
-      const availableForms = (data || []).filter(form => !appliedFormIds.includes(form.id))
-      
-      setAvailableForms(availableForms)
-    } catch (error) {
-      console.error('Error fetching available forms:', error)
-    }
-  }
+  useEffect(() => {
+    // Filter out forms that user has already applied to
+    const appliedFormIds = applications.map(app => app.form_id)
+    const available = scholarshipForms.filter(form => !appliedFormIds.includes(form.id))
+    setAvailableForms(available)
+  }, [applications, scholarshipForms])
 
   const handleApplyToForm = async (formId: string) => {
     if (!user) {
@@ -109,7 +68,6 @@ const StudentApplications: React.FC = () => {
 
       toast.success('Application submitted successfully!')
       fetchApplications()
-      fetchAvailableForms()
     } catch (error) {
       console.error('Error applying to form:', error)
       toast.error('Failed to submit application')
@@ -147,7 +105,7 @@ const StudentApplications: React.FC = () => {
     }
   }
 
-  const handleViewApplication = (application: Application) => {
+  const handleViewApplication = (application: any) => {
     setSelectedApplication(application)
     fetchApplicationDetails(application.id)
   }
@@ -191,7 +149,7 @@ const StudentApplications: React.FC = () => {
     }
   }
 
-  if (loading) {
+  if (loadingApplications && applications.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600"></div>

@@ -1,56 +1,14 @@
-import React, { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import React, { useEffect } from 'react'
+import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 
-interface Announcement {
-  id: string
-  message: string
-  message_hindi?: string
-  is_active: boolean
-  created_at: string
-}
-
 const Marquee: React.FC = () => {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const { announcements, fetchAnnouncements } = useData()
   const { language } = useLanguage()
 
   useEffect(() => {
     fetchAnnouncements()
-
-    // Set up real-time subscription for announcements
-    const subscription = supabase
-      .channel('announcements')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'announcements' },
-        () => {
-          fetchAnnouncements()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  const fetchAnnouncements = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error fetching announcements:', error)
-        return
-      }
-
-      setAnnouncements(data || [])
-    } catch (error) {
-      console.error('Error fetching announcements:', error)
-    }
-  }
+  }, [fetchAnnouncements])
 
   if (announcements.length === 0) return null
 

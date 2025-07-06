@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { 
   Calendar, 
@@ -15,21 +15,6 @@ import {
   Filter,
   Download
 } from 'lucide-react'
-import toast from 'react-hot-toast'
-
-interface ApplicationHistory {
-  id: string
-  form_id: string
-  status: 'pending' | 'approved' | 'rejected' | 'hold'
-  submitted_at: string
-  reviewed_at?: string
-  admin_notes?: string
-  scholarship_forms: {
-    title: string
-    title_hindi?: string
-    education_level: string
-  }
-}
 
 interface StatusStats {
   total: number
@@ -40,8 +25,11 @@ interface StatusStats {
 }
 
 const StudentHistory: React.FC = () => {
-  const [applications, setApplications] = useState<ApplicationHistory[]>([])
-  const [filteredApplications, setFilteredApplications] = useState<ApplicationHistory[]>([])
+  const { user } = useAuth()
+  const { applications, loadingApplications, fetchApplications } = useData()
+  const { language, t } = useLanguage()
+  
+  const [filteredApplications, setFilteredApplications] = useState<any[]>([])
   const [stats, setStats] = useState<StatusStats>({
     total: 0,
     pending: 0,
@@ -49,43 +37,19 @@ const StudentHistory: React.FC = () => {
     rejected: 0,
     hold: 0
   })
-  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [yearFilter, setYearFilter] = useState('all')
-  const { user } = useAuth()
-  const { language, t } = useLanguage()
 
   useEffect(() => {
     if (user) {
-      fetchApplicationHistory()
+      fetchApplications()
     }
-  }, [user])
+  }, [user, fetchApplications])
 
   useEffect(() => {
     filterApplications()
     calculateStats()
   }, [applications, statusFilter, yearFilter])
-
-  const fetchApplicationHistory = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('applications')
-        .select(`
-          *,
-          scholarship_forms (title, title_hindi, education_level)
-        `)
-        .eq('student_id', user?.id)
-        .order('submitted_at', { ascending: false })
-
-      if (error) throw error
-      setApplications(data || [])
-    } catch (error) {
-      console.error('Error fetching application history:', error)
-      toast.error('Failed to load application history')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const filterApplications = () => {
     let filtered = applications
@@ -187,7 +151,7 @@ const StudentHistory: React.FC = () => {
     </div>
   )
 
-  if (loading) {
+  if (loadingApplications && applications.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
