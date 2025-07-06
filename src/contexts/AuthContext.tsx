@@ -121,72 +121,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const createUserRecord = async (userId: string, email: string, fullName: string) => {
-    try {
-      // Check if user already exists
-      const { data: existingUser, error: checkError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email)
-        .single()
-      
-      if (existingUser) {
-        throw new Error('Email already registered')
-      }
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Error checking existing user:', checkError.message, checkError)
-        throw new Error(`Failed to check existing user: ${checkError.message}`)
-      }
-
-      // Validate fullName
-      if (!fullName || fullName.trim() === '') {
-        throw new Error('Full name is required')
-      }
-
-      // Create user record
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: userId,
-          email: email,
-          role: 'student',
-          language: 'english',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single()
-
-      if (userError) {
-        console.error('Error creating user record:', userError.message, userError)
-        throw new Error(`Failed to create user record: ${userError.message}`)
-      }
-
-      // Create profile record
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: userId,
-          full_name: fullName,
-          is_verified: true, // Email verified through OTP
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single()
-
-      if (profileError) {
-        console.error('Error creating profile record:', profileError.message, profileError)
-        throw new Error(`Failed to create profile record: ${profileError.message}`)
-      }
-
-      return { user: userData, profile: profileData }
-    } catch (error) {
-      console.error('Error creating user/profile records:', error)
-      throw error
-    }
-  }
-
   const fetchUserData = async (userId: string) => {
     try {
       setLoading(true)
@@ -239,19 +173,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error fetching profile data:', profileResult.error.message, profileResult.error)
       }
 
-      if (!userData || !profileData) {
-        const { data: authUser } = await supabase.auth.getUser()
-        if (authUser.user) {
-          const { user: newUserData, profile: newProfileData } = await createUserRecord(
-            authUser.user.id, 
-            authUser.user.email || '', 
-            authUser.user.user_metadata?.full_name || 'User'
-          )
-          userData = newUserData
-          profileData = newProfileData
-        }
-      }
-
       userDataCache.set(userId, {
         user: userData,
         profile: profileData,
@@ -294,17 +215,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Password must be at least 6 characters')
       }
 
-      // Check if email already exists in auth.users
-      const { data: existingAuthUser } = await supabase
-        .from('auth.users')
-        .select('id')
-        .eq('email', email)
-        .single()
-
-      if (existingAuthUser) {
-        throw new Error('Email already registered')
-      }
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -323,15 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { user: null, session: null }
       }
 
-      if (data.user) {
-        const { user: userData, profile: profileData } = await createUserRecord(
-          data.user.id,
-          email,
-          fullName
-        )
-        return { user: userData, session: data.session }
-      }
-
+      // The database trigger will handle creating user and profile records
       return { user: null, session: data.session }
     } catch (error) {
       console.error('Signup error:', error)
