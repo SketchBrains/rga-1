@@ -38,7 +38,6 @@ const StudentDashboard: React.FC = () => {
     approvedApplications: 0,
     rejectedApplications: 0
   })
-  const [applying, setApplying] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -62,43 +61,6 @@ const StudentDashboard: React.FC = () => {
   const getApplicationStatus = (formId: string) => {
     const application = applications.find(app => app.form_id === formId)
     return application?.status || null
-  }
-
-  const handleApplyToForm = async (formId: string) => {
-    if (!user || !profile) {
-      toast.error('Please complete your profile first')
-      return
-    }
-
-    setApplying(formId)
-    try {
-      // Check if already applied
-      const existingApplication = applications.find(app => app.form_id === formId)
-      if (existingApplication) {
-        toast.error('You have already applied to this scholarship')
-        return
-      }
-
-      // Create new application
-      const { error } = await supabase
-        .from('applications')
-        .insert({
-          form_id: formId,
-          student_id: user.id,
-          status: 'pending'
-        })
-
-      if (error) throw error
-
-      toast.success('Application submitted successfully!')
-      // Refresh applications data
-      fetchApplications()
-    } catch (error) {
-      console.error('Error applying to form:', error)
-      toast.error('Failed to submit application')
-    } finally {
-      setApplying(null)
-    }
   }
 
   const getStatusIcon = (status: string) => {
@@ -160,6 +122,14 @@ const StudentDashboard: React.FC = () => {
       </div>
     )
   }
+
+  const approvalRate = stats.totalApplications > 0 
+    ? Math.round((stats.approvedApplications / stats.totalApplications) * 100) 
+    : 0
+
+  // Filter out forms that user has already applied to
+  const appliedFormIds = applications.map(app => app.form_id)
+  const availableForms = scholarshipForms.filter(form => !appliedFormIds.includes(form.id))
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -233,7 +203,7 @@ const StudentDashboard: React.FC = () => {
                 : 'Apply for scholarships that match your education level'}
             </p>
           </div>
-          {scholarshipForms.length > 3 && (
+          {availableForms.length > 3 && (
             <button className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base mt-2 sm:mt-0">
               <span>{language === 'hindi' ? 'सभी देखें' : 'View All'}</span>
               <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -241,33 +211,36 @@ const StudentDashboard: React.FC = () => {
           )}
         </div>
 
-        {scholarshipForms.length === 0 ? (
+        {availableForms.length === 0 ? (
           <div className="text-center py-8 sm:py-12 bg-gray-50 rounded-xl">
             <GraduationCap className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
-              {language === 'hindi' ? 'कोई छात्रवृत्ति उपलब्ध नहीं' : 'No scholarships available'}
+              {applications.length > 0 
+                ? (language === 'hindi' ? 'सभी उपलब्ध छात्रवृत्तियों के लिए आवेदन किया गया' : 'Applied to all available scholarships')
+                : (language === 'hindi' ? 'कोई छात्रवृत्ति उपलब्ध नहीं' : 'No scholarships available')
+              }
             </h3>
             <p className="text-sm sm:text-base text-gray-600">
-              {language === 'hindi' 
-                ? 'नई छात्रवृत्ति के अवसरों के लिए बाद में जांचें'
-                : 'Check back later for new scholarship opportunities'}
+              {applications.length > 0
+                ? (language === 'hindi' 
+                    ? 'नई छात्रवृत्ति के अवसरों के लिए बाद में जांचें'
+                    : 'Check back later for new scholarship opportunities')
+                : (language === 'hindi' 
+                    ? 'नई छात्रवृत्ति के अवसरों के लिए बाद में जांचें'
+                    : 'Check back later for new scholarship opportunities')
+              }
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-            {scholarshipForms.map((form) => {
-              const applicationStatus = getApplicationStatus(form.id)
-              const isApplied = !!applicationStatus
-              const isApplyingToThis = applying === form.id
+            {availableForms.slice(0, 6).map((form) => {
               const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title
               const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description
 
               return (
                 <div
                   key={form.id}
-                  className={`bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all duration-200 ${
-                    isApplied ? 'ring-2 ring-blue-200' : 'hover:-translate-y-1'
-                  }`}
+                  className="bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-1"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -279,14 +252,6 @@ const StudentDashboard: React.FC = () => {
                         <p className="text-xs sm:text-sm text-gray-500 capitalize">{form.education_level}</p>
                       </div>
                     </div>
-                    {isApplied && (
-                      <div className="flex items-center space-x-2 ml-2">
-                        {getStatusIcon(applicationStatus)}
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(applicationStatus)}`}>
-                          {applicationStatus.charAt(0).toUpperCase() + applicationStatus.slice(1)}
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   {description && (
@@ -301,30 +266,9 @@ const StudentDashboard: React.FC = () => {
                       <span>{new Date(form.created_at).toLocaleDateString()}</span>
                     </div>
                     
-                    <button
-                      onClick={() => handleApplyToForm(form.id)}
-                      disabled={isApplied || isApplyingToThis}
-                      className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center justify-center space-x-2 w-full sm:w-auto ${
-                        isApplied
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : isApplyingToThis
-                          ? 'bg-blue-400 text-white cursor-not-allowed'
-                          : 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white hover:from-blue-700 hover:to-emerald-700 shadow-md hover:shadow-lg'
-                      }`}
-                    >
-                      {isApplyingToThis ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
-                          <span>Applying...</span>
-                        </>
-                      ) : isApplied ? (
-                        <span>{language === 'hindi' ? 'आवेदित' : 'Applied'}</span>
-                      ) : (
-                        <>
-                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                          <span>{language === 'hindi' ? 'आवेदन करें' : 'Apply Now'}</span>
-                        </>
-                      )}
+                    <button className="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center justify-center space-x-2 w-full sm:w-auto bg-gradient-to-r from-blue-600 to-emerald-600 text-white hover:from-blue-700 hover:to-emerald-700 shadow-md hover:shadow-lg">
+                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>{language === 'hindi' ? 'आवेदन करें' : 'Apply Now'}</span>
                     </button>
                   </div>
                 </div>
@@ -333,6 +277,64 @@ const StudentDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* My Applications Section */}
+      {applications.length > 0 && (
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                {language === 'hindi' ? 'मेरे आवेदन' : 'My Applications'}
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600">
+                {language === 'hindi' 
+                  ? 'आपके हाल के आवेदनों की स्थिति'
+                  : 'Status of your recent applications'}
+              </p>
+            </div>
+            <button className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base mt-2 sm:mt-0">
+              <span>{language === 'hindi' ? 'सभी देखें' : 'View All'}</span>
+              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {applications.slice(0, 4).map((application) => {
+              const title = language === 'hindi' && application.scholarship_forms?.title_hindi 
+                ? application.scholarship_forms.title_hindi 
+                : application.scholarship_forms?.title
+
+              return (
+                <div
+                  key={application.id}
+                  className={`bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-shadow ${
+                    application.status === 'approved' ? 'ring-2 ring-green-200 bg-green-50' : 
+                    application.status === 'rejected' ? 'ring-2 ring-red-200 bg-red-50' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1 line-clamp-2">{title}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-2">{application.scholarship_forms?.education_level}</p>
+                    </div>
+                    <div className="flex items-center space-x-2 ml-4">
+                      {getStatusIcon(application.status)}
+                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(application.status)}`}>
+                        {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-500">
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span>Submitted: {new Date(application.submitted_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

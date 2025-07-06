@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import ApplicationForm from './ApplicationForm'
 import { 
   FileText, 
   Calendar, 
@@ -13,7 +14,8 @@ import {
   Eye,
   Edit,
   AlertCircle,
-  Plus
+  Plus,
+  ArrowRight
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -30,8 +32,9 @@ const StudentApplications: React.FC = () => {
   
   const [availableForms, setAvailableForms] = useState<any[]>([])
   const [selectedApplication, setSelectedApplication] = useState<any>(null)
+  const [selectedForm, setSelectedForm] = useState<any>(null)
   const [applicationDetails, setApplicationDetails] = useState<any>(null)
-  const [applying, setApplying] = useState<string | null>(null)
+  const [showApplicationForm, setShowApplicationForm] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -47,33 +50,20 @@ const StudentApplications: React.FC = () => {
     setAvailableForms(available)
   }, [applications, scholarshipForms])
 
-  const handleApplyToForm = async (formId: string) => {
-    if (!user) {
-      toast.error('Please log in to apply')
-      return
-    }
+  const handleApplyToForm = (form: any) => {
+    setSelectedForm(form)
+    setShowApplicationForm(true)
+  }
 
-    setApplying(formId)
-    try {
-      // Create new application
-      const { error } = await supabase
-        .from('applications')
-        .insert({
-          form_id: formId,
-          student_id: user.id,
-          status: 'pending'
-        })
+  const handleFormSuccess = () => {
+    setShowApplicationForm(false)
+    setSelectedForm(null)
+    toast.success('Application submitted successfully!')
+  }
 
-      if (error) throw error
-
-      toast.success('Application submitted successfully!')
-      fetchApplications()
-    } catch (error) {
-      console.error('Error applying to form:', error)
-      toast.error('Failed to submit application')
-    } finally {
-      setApplying(null)
-    }
+  const handleBackFromForm = () => {
+    setShowApplicationForm(false)
+    setSelectedForm(null)
   }
 
   const fetchApplicationDetails = async (applicationId: string) => {
@@ -149,6 +139,17 @@ const StudentApplications: React.FC = () => {
     }
   }
 
+  // Show application form if selected
+  if (showApplicationForm && selectedForm) {
+    return (
+      <ApplicationForm
+        form={selectedForm}
+        onBack={handleBackFromForm}
+        onSuccess={handleFormSuccess}
+      />
+    )
+  }
+
   if (loadingApplications && applications.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -161,7 +162,7 @@ const StudentApplications: React.FC = () => {
     <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">My Applications</h1>
-        <p className="text-sm sm:text-base text-gray-600">Track the status of your scholarship applications</p>
+        <p className="text-sm sm:text-base text-gray-600">Apply for scholarships and track your application status</p>
       </div>
 
       {/* Available Forms Section */}
@@ -172,10 +173,9 @@ const StudentApplications: React.FC = () => {
             {availableForms.map((form) => {
               const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title
               const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description
-              const isApplyingToThis = applying === form.id
 
               return (
-                <div key={form.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-shadow">
+                <div key={form.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
                   <div className="flex items-start space-x-3 mb-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-100 to-emerald-100 rounded-lg flex items-center justify-center">
                       <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
@@ -197,25 +197,12 @@ const StudentApplications: React.FC = () => {
                     </div>
                     
                     <button
-                      onClick={() => handleApplyToForm(form.id)}
-                      disabled={isApplyingToThis}
-                      className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center space-x-2 ${
-                        isApplyingToThis
-                          ? 'bg-blue-400 text-white cursor-not-allowed'
-                          : 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white hover:from-blue-700 hover:to-emerald-700 shadow-md hover:shadow-lg'
-                      }`}
+                      onClick={() => handleApplyToForm(form)}
+                      className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-emerald-600 text-white rounded-lg hover:from-blue-700 hover:to-emerald-700 transition-all shadow-md hover:shadow-lg text-xs sm:text-sm font-medium"
                     >
-                      {isApplyingToThis ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
-                          <span>Applying...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                          <span>{language === 'hindi' ? 'आवेदन करें' : 'Apply Now'}</span>
-                        </>
-                      )}
+                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>{language === 'hindi' ? 'आवेदन करें' : 'Apply Now'}</span>
+                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 </div>
@@ -231,6 +218,9 @@ const StudentApplications: React.FC = () => {
           <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No applications yet</h3>
           <p className="text-sm sm:text-base text-gray-600">You haven't submitted any scholarship applications yet.</p>
+          {availableForms.length > 0 && (
+            <p className="text-sm sm:text-base text-blue-600 mt-2">Check out the available scholarships above to get started!</p>
+          )}
         </div>
       ) : (
         <div>
@@ -244,7 +234,10 @@ const StudentApplications: React.FC = () => {
               return (
                 <div
                   key={application.id}
-                  className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-shadow"
+                  className={`bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-shadow ${
+                    application.status === 'approved' ? 'ring-2 ring-green-200 bg-green-50' : 
+                    application.status === 'rejected' ? 'ring-2 ring-red-200 bg-red-50' : ''
+                  }`}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1 min-w-0">
