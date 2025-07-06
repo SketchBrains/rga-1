@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, User, Profile } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { BookOpen, Key, Loader, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -21,7 +21,6 @@ const GoogleCallback: React.FC = () => {
 
   const handleGoogleCallback = async () => {
     try {
-      // Check for error in URL parameters
       const urlParams = new URLSearchParams(window.location.search)
       const errorParam = urlParams.get('error')
       const errorDescription = urlParams.get('error_description')
@@ -33,12 +32,11 @@ const GoogleCallback: React.FC = () => {
         return
       }
 
-      // Get the session from the URL hash
       const { data, error } = await supabase.auth.getSession()
       
       if (error) {
-        console.error('Error getting session:', error)
-        setError('Failed to get authentication session')
+        console.error('Error getting session:', error.message, error)
+        setError(`Failed to get authentication session: ${error.message}`)
         setLoading(false)
         return
       }
@@ -46,7 +44,6 @@ const GoogleCallback: React.FC = () => {
       if (data.session) {
         const user = data.session.user
         
-        // Check if user exists in our database
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
@@ -54,27 +51,90 @@ const GoogleCallback: React.FC = () => {
           .single()
 
         if (userError && userError.code === 'PGRST116') {
-          // User doesn't exist, this is a new Google signup
           setNeedsPassword(true)
           setLoading(false)
         } else if (userData) {
-          // Existing user, redirect to dashboard
           toast.success('Welcome back!')
           navigate('/')
         } else {
-          // Some other error occurred
-          console.error('Error checking user:', userError)
-          setError('Failed to verify user account')
+          console.error('Error checking user:', userError?.message, userError)
+          setError(`Failed to verify user account: ${userError?.message}`)
           setLoading(false)
         }
       } else {
         setError('No authentication session found')
         setLoading(false)
       }
-    } catch (error) {
-      console.error('Error in Google callback:', error)
-      setError('Authentication failed')
+    } catch (error: any) {
+      console.error('Error in Google callback:', error.message, error)
+      setError(error.message || 'Authentication failed')
       setLoading(false)
+    }
+  }
+
+  const createUserRecord = async (userId: string, email: string, fullName: string) => {
+    try {
+      // Check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .single()
+      
+      if (existingUser) {
+        throw new Error('Email already registered')
+      }
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing user:', checkError.message, checkError)
+        throw new Error(`Failed to check existing user: ${checkError.message}`)
+      }
+
+      // Validate fullName
+      if (!fullName || fullName.trim() === '') {
+        throw new Error('Full name is required')
+      }
+
+      // Create user record
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email: email,
+          role: 'student',
+          language: 'english',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (userError) {
+        console.error('Error creating user record:', userError.message, userError)
+        throw new Error(`Failed to create user record: ${userError.message}`)
+      }
+
+      // Create profile record
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: userId,
+          full_name: fullName,
+          is_verified: true, // Google users are pre-verified
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (profileError) {
+        console.error('Error creating profile record:', profileError.message, profileError)
+        throw new Error(`Failed to create profile record: ${profileError.message}`)
+      }
+
+      return { user: userData, profile: profileData }
+    } catch (error) {
+      console.error('Error creating user/profile records:', error)
+      throw error
     }
   }
 
@@ -82,61 +142,52 @@ const GoogleCallback: React.FC = () => {
     e.preventDefault()
 
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match')
+      toast.error(language === 'hindi' ? 'पासवर्ड मेल नहीं खाते' : 'Passwords do not match')
       return
     }
 
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters')
+      toast.error(
+        language === 'hindi'
+          ? 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए'
+          : 'Password must be at least 6 characters'
+      )
       return
     }
 
     setSettingPassword(true)
 
     try {
-      // Get current session
       const { data: sessionData } = await supabase.auth.getSession()
       if (!sessionData.session?.user) {
-        throw new Error('No active session')
+        throw new Error(language === 'hindi' ? 'कोई सक्रिय सत्र नहीं' : 'No active session')
       }
 
       const user = sessionData.session.user
+      const fullName =
+        user.user_metadata?.full_name || user.user_metadata?.name || `User_${user.id.slice(0, 8)}`
 
       // Update user password
       const { error: passwordError } = await supabase.auth.updateUser({
         password: password
       })
+      if (passwordError) throw new Error(`Failed to set password: ${passwordError.message}`)
 
-      if (passwordError) throw passwordError
+      // Create user and profile records
+      await createUserRecord(user.id, user.email || '', fullName)
 
-      // Create user record
-      const { error: userError } = await supabase
-        .from('users')
-        .upsert({
-          id: user.id,
-          email: user.email || '',
-          role: 'student',
-          language: 'english'
-        })
-
-      if (userError) throw userError
-
-      // Create profile record
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          user_id: user.id,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'User',
-          is_verified: true // Google users are pre-verified
-        })
-
-      if (profileError) throw profileError
-
-      toast.success('Account setup complete! Welcome to RGA Portal.')
+      toast.success(
+        language === 'hindi'
+          ? 'खाता सेटअप पूर्ण! RGA पोर्टल में आपका स्वागत है।'
+          : 'Account setup complete! Welcome to RGA Portal.'
+      )
       navigate('/')
     } catch (error: any) {
-      console.error('Error setting password:', error)
-      toast.error(error.message || 'Failed to complete account setup')
+      console.error('Error setting password:', error.message, error)
+      toast.error(
+        error.message ||
+          (language === 'hindi' ? 'खाता सेटअप विफल' : 'Failed to complete account setup')
+      )
     } finally {
       setSettingPassword(false)
     }

@@ -63,12 +63,29 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     e.preventDefault()
     setLoading(true)
 
+    if (!formData.fullName.trim()) {
+      toast.error(language === 'hindi' ? 'पूरा नाम आवश्यक है' : 'Full name is required')
+      setLoading(false)
+      return
+    }
+    if (!formData.password || formData.password.length < 6) {
+      toast.error(language === 'hindi' ? 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए' : 'Password must be at least 6 characters')
+      setLoading(false)
+      return
+    }
+
     try {
-      await signUp(formData.email, formData.fullName)
+      await signUp(formData.email, formData.fullName, formData.password)
       setCurrentStep('verify-otp')
-      toast.success('OTP sent to your email!')
+      toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
     } catch (error: any) {
-      toast.error(error.message || 'Signup failed')
+      const errorMessage =
+        error.message === 'Email already registered'
+          ? language === 'hindi'
+            ? 'यह ईमेल पहले से पंजीकृत है'
+            : 'This email is already registered'
+          : error.message || (language === 'hindi' ? 'साइन अप विफल' : 'Signup failed')
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -80,8 +97,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
     try {
       await verifyOtp(formData.email, formData.otp)
-      setCurrentStep('set-password')
-      toast.success('Email verified! Please set your password.')
+      toast.success('Email verified! You can now log in.')
+      setCurrentStep('login')
+      setIsLogin(true)
+      setFormData({ ...formData, password: '', otp: '' })
     } catch (error: any) {
       toast.error(error.message || 'Invalid OTP')
     } finally {
@@ -371,6 +390,25 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
               </div>
 
               <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  {language === 'hindi' ? 'पासवर्ड' : 'Password'}
+                </label>
+                <div className="mt-1 relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                    placeholder={language === 'hindi' ? 'कम से कम 6 अक्षर' : 'At least 6 characters'}
+                  />
+                </div>
+              </div>
+
+              <div>
                 <button
                   type="submit"
                   disabled={loading}
@@ -378,7 +416,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 >
                   {loading 
                     ? (language === 'hindi' ? 'OTP भेजा जा रहा है...' : 'Sending OTP...')
-                    : (language === 'hindi' ? 'OTP भेजें' : 'Send OTP')
+                    : (language === 'hindi' ? 'साइन अप करें' : 'Sign Up')
                   }
                 </button>
               </div>
@@ -549,7 +587,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
           )}
         </div>
 
-        {/* Additional Info */}
         <div className="text-center text-xs sm:text-sm text-gray-600">
           <p>
             {language === 'hindi' 

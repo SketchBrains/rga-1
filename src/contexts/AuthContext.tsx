@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, User, Profile } from '../lib/supabase'
-import { Session } from '@supabase/supabase-js'
+import { Session, User as SupabaseUser } from '@supabase/supabase-js'
 
 interface AuthContextType {
   user: User | null
@@ -8,7 +8,7 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, fullName: string) => Promise<void>
+  signUp: (email: string, fullName: string, password: string) => Promise<{ user: User | null; session: Session | null }>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
   verifyOtp: (email: string, otp: string) => Promise<void>
@@ -44,11 +44,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
-        // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession()
-        
         if (error) {
-          console.error('Error getting session:', error)
+          console.error('Error getting session:', error.message, error)
           if (mounted) {
             setSession(null)
             setUser(null)
@@ -77,7 +75,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Set up auth state listener
     const setupAuthListener = () => {
       const {
         data: { subscription },
@@ -87,7 +84,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Auth state changed:', event, session?.user?.id)
         
         if (event === 'SIGNED_OUT' || !session) {
-          // Clear cache on sign out
           if (session?.user?.id) {
             userDataCache.delete(session.user.id)
           }
@@ -111,7 +107,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authSubscription = subscription
     }
 
-    // Initialize auth and set up listener
     initializeAuth().then(() => {
       if (mounted) {
         setupAuthListener()
@@ -126,36 +121,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const createUserRecord = async (userId: string, email: string, fullName?: string) => {
+  const createUserRecord = async (userId: string, email: string, fullName: string, isGoogle: boolean = false) => {
     try {
-      // Create user record
-      const { error: userError } = await supabase
+      // Check if user already exists
+      const { data: existingUser, error: checkError } = await supabase
         .from('users')
-        .upsert({
+        .select('id')
+        .eq('email', email)
+        .single()
+      
+      if (existingUser) {
+        throw new Error('Email already registered')
+      }
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing user:', checkError.message, checkError)
+        throw new Error(`Failed to check existing user: ${checkError.message}`)
+      }
+
+      // Validate fullName
+      if (!fullName || fullName.trim() === '') {
+        throw new Error('Full name is required')
+      }
+
+      // Create user record
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .insert({
           id: userId,
           email: email,
           role: 'student',
-          language: 'english'
+          language: 'english',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
+        .select()
+        .single()
 
       if (userError) {
-        console.error('Error creating user record:', userError)
+        console.error('Error creating user record:', userError.message, userError)
+        throw new Error(`Failed to create user record: ${userError.message}`)
       }
 
       // Create profile record
-      const { error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .upsert({
+        .insert({
           user_id: userId,
-          full_name: fullName || 'User',
-          is_verified: false
+          full_name: fullName,
+          is_verified: isGoogle, // Google users are pre-verified
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
+        .select()
+        .single()
 
       if (profileError) {
-        console.error('Error creating profile record:', profileError)
+        console.error('Error creating profile record:', profileError.message, profileError)
+        throw new Error(`Failed to create profile record: ${profileError.message}`)
       }
+
+      return { user: userData, profile: profileData }
     } catch (error) {
       console.error('Error creating user/profile records:', error)
+      throw error
     }
   }
 
@@ -163,7 +191,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true)
       
-      // Check cache first
       const cached = userDataCache.get(userId)
       const now = Date.now()
       
@@ -175,7 +202,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
 
-      // Fetch user and profile data with shorter timeout
       const fetchPromise = Promise.all([
         supabase
           .from('users')
@@ -189,7 +215,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single()
       ])
 
-      // Set a 5-second timeout for data fetching
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Request timeout')), 5000)
       )
@@ -205,49 +230,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userResult.data && !userResult.error) {
         userData = userResult.data
       } else if (userResult.error && !userResult.error.message.includes('No rows')) {
-        console.error('Error fetching user data:', userResult.error)
+        console.error('Error fetching user data:', userResult.error.message, userResult.error)
       }
 
       if (profileResult.data && !profileResult.error) {
         profileData = profileResult.data
       } else if (profileResult.error && !profileResult.error.message.includes('No rows')) {
-        console.error('Error fetching profile data:', profileResult.error)
+        console.error('Error fetching profile data:', profileResult.error.message, profileResult.error)
       }
 
-      // If no user or profile data found, create them
       if (!userData || !profileData) {
         const { data: authUser } = await supabase.auth.getUser()
         if (authUser.user) {
-          await createUserRecord(
+          const { user: newUserData, profile: newProfileData } = await createUserRecord(
             authUser.user.id, 
             authUser.user.email || '', 
-            authUser.user.user_metadata?.full_name
+            authUser.user.user_metadata?.full_name || 'User',
+            authUser.user.identities?.some(id => id.provider === 'google')
           )
-          
-          // Retry fetching after creating records
-          try {
-            const [newUserResult, newProfileResult] = await Promise.all([
-              supabase
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single(),
-              supabase
-                .from('profiles')
-                .select('*')
-                .eq('user_id', userId)
-                .single()
-            ])
-            
-            userData = newUserResult.data
-            profileData = newProfileResult.data
-          } catch (retryError) {
-            console.error('Error retrying user data fetch:', retryError)
-          }
+          userData = newUserData
+          profileData = newProfileData
         }
       }
 
-      // Cache the results
       userDataCache.set(userId, {
         user: userData,
         profile: profileData,
@@ -258,7 +263,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(profileData)
     } catch (error) {
       console.error('Error fetching user data:', error)
-      // Don't throw error, just set loading to false
     } finally {
       setLoading(false)
     }
@@ -271,29 +275,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         password,
       })
-      if (error) throw error
-      // Loading will be set to false by the auth state change listener
+      if (error) throw new Error(`Sign-in failed: ${error.message}`)
     } catch (error) {
       setLoading(false)
       throw error
     }
   }
 
-  const signUp = async (email: string, fullName: string) => {
+  const signUp = async (email: string, fullName: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      // Validate inputs
+      if (!email || !email.includes('@')) {
+        throw new Error('Invalid email address')
+      }
+      if (!fullName || fullName.trim() === '') {
+        throw new Error('Full name is required')
+      }
+      if (!password || password.length < 6) {
+        throw new Error('Password must be at least 6 characters')
+      }
+
+      // Check if email already exists in auth.users
+      const { data: existingAuthUser } = await supabase
+        .from('auth.users')
+        .select('id')
+        .eq('email', email)
+        .single()
+
+      if (existingAuthUser) {
+        throw new Error('Email already registered')
+      }
+
+      const { data, error } = await supabase.auth.signUp({
         email,
-        password: 'temporary_password_123', // Temporary password
+        password,
         options: {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: undefined, // Disable email confirmation redirect
+          emailRedirectTo: `http://localhost:5173/auth/callback`,
         },
       })
       
-      if (error) throw error
+      if (error) throw new Error(`Auth signup failed: ${error.message}`)
+
+      if (data.user) {
+        const { user: userData, profile: profileData } = await createUserRecord(
+          data.user.id,
+          email,
+          fullName
+        )
+        return { user: userData, session: data.session }
+      }
+
+      return { user: null, session: data.session }
     } catch (error) {
+      console.error('Signup error:', error)
       throw error
     }
   }
@@ -306,17 +343,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         type: 'signup'
       })
       
-      if (error) throw error
-      
-      // Create user and profile records after successful OTP verification
-      if (data.user) {
-        await createUserRecord(
-          data.user.id, 
-          email, 
-          data.user.user_metadata?.full_name
-        )
-      }
+      if (error) throw new Error(`OTP verification failed: ${error.message}`)
     } catch (error) {
+      console.error('OTP verification error:', error)
       throw error
     }
   }
@@ -327,11 +356,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password: password
       })
       
-      if (error) throw error
+      if (error) throw new Error(`Set password failed: ${error.message}`)
       
-      // Sign out after setting password so user can login with new credentials
       await supabase.auth.signOut()
     } catch (error) {
+      console.error('Set password error:', error)
       throw error
     }
   }
@@ -343,8 +372,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email
       })
       
-      if (error) throw error
+      if (error) throw new Error(`Resend OTP failed: ${error.message}`)
     } catch (error) {
+      console.error('Resend OTP error:', error)
       throw error
     }
   }
@@ -354,15 +384,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `http://localhost:5173/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
           },
         },
       })
-      if (error) throw error
+      if (error) throw new Error(`Google sign-in failed: ${error.message}`)
     } catch (error) {
+      console.error('Google sign-in error:', error)
       throw error
     }
   }
@@ -370,13 +401,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true)
     try {
-      // Clear cache before signing out
       if (user?.id) {
         userDataCache.delete(user.id)
       }
       
       const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      if (error) throw new Error(`Sign-out failed: ${error.message}`)
     } catch (error) {
       console.error('Error signing out:', error)
     } finally {
@@ -398,12 +428,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .eq('user_id', user.id)
 
-    if (error) throw error
+    if (error) throw new Error(`Update profile failed: ${error.message}`)
     
     const updatedProfile = profile ? { ...profile, ...updates } : null
     setProfile(updatedProfile)
     
-    // Update cache
     if (user.id) {
       const cached = userDataCache.get(user.id)
       if (cached) {
@@ -427,12 +456,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .eq('id', user.id)
 
-    if (error) throw error
+    if (error) throw new Error(`Update language failed: ${error.message}`)
     
     const updatedUser = { ...user, language }
     setUser(updatedUser)
     
-    // Update cache
     if (user.id) {
       const cached = userDataCache.get(user.id)
       if (cached) {

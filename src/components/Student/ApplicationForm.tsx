@@ -209,7 +209,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         .map(([fieldId, value]) => ({
           application_id: application.id,
           field_id: fieldId,
-          response_value: typeof value === 'string' ? value : value.name
+          response_value: typeof value === 'string' ? value : (value ? value.name : '')
         }))
 
       if (responsesToSave.length > 0) {
@@ -280,7 +280,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         .map(([fieldId, value]) => ({
           application_id: application.id,
           field_id: fieldId,
-          response_value: typeof value === 'string' ? value : value.name
+          response_value: typeof value === 'string' ? value : (value ? value.name : '')
         }))
 
       if (responsesToSave.length > 0) {
