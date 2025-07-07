@@ -120,11 +120,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
 
       if (userError) {
         console.error('❌ Error fetching user:', userError)
         throw new Error('Failed to fetch user data')
+      }
+
+      if (!userData) {
+        console.error('❌ No user record found for authenticated user:', userId)
+        throw new Error('User record not found in database')
       }
 
       // Fetch profile data
@@ -132,11 +137,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (profileError) {
         console.error('❌ Error fetching profile:', profileError)
         throw new Error('Failed to fetch profile data')
+      }
+
+      if (!profileData) {
+        console.error('❌ No profile record found for user:', userId)
+        throw new Error('Profile record not found in database')
       }
 
       console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
