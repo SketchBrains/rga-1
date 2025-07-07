@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (mounted) {
           setSession(session)
           if (session?.user) {
-            await fetchUserData(session.user.id)
+            await fetchUserData(session.user)
           } else {
             setLoading(false)
           }
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('✅ User signed in, fetching data...')
           setSession(session)
           if (session?.user) {
-            await fetchUserData(session.user.id)
+            await fetchUserData(session.user)
           } else {
             setLoading(false)
           }
@@ -118,85 +118,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const fetchUserData = async (userId: string) => {
+  const createMissingUserRecords = async (authUser: SupabaseUser) => {
     try {
-      console.log('🔍 Fetching user data for:', userId)
+      console.log('🔧 Creating missing user records for:', authUser.id)
       
-      // Fetch user and profile data with increased retries and longer delays
-      let userData = null
-      let profileData = null
-      let retryCount = 0
-      const maxRetries = 5 // Increased from 3 to 5
-      const retryDelay = 2000 // Increased from 1500ms to 2000ms
+      // Create user record
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authUser.id,
+          email: authUser.email!,
+          role: 'student',
+          language: 'english'
+        })
 
-      while (retryCount < maxRetries && (!userData || !profileData)) {
-        console.log(`🔄 Attempt ${retryCount + 1} to fetch user data...`)
+      if (userError && !userError.message.includes('duplicate key')) {
+        console.error('❌ Error creating user record:', userError)
+        throw userError
+      }
+
+      // Create profile record
+      const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: authUser.id,
+          full_name: fullName
+        })
+
+      if (profileError && !profileError.message.includes('duplicate key')) {
+        console.error('❌ Error creating profile record:', profileError)
+        throw profileError
+      }
+
+      console.log('✅ Successfully created missing user records')
+      return true
+    } catch (error) {
+      console.error('❌ Failed to create missing user records:', error)
+      return false
+    }
+  }
+
+  const fetchUserData = async (authUser: SupabaseUser) => {
+    try {
+      console.log('🔍 Fetching user data for:', authUser.id)
+      
+      // Try to fetch user and profile data
+      const [userResult, profileResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .maybeSingle()
+      ])
+
+      let userData = userResult.data
+      let profileData = profileResult.data
+
+      // If user or profile data is missing, try to create it
+      if (!userData || !profileData) {
+        console.log('⚠️ Missing user records, attempting to create them...')
+        const created = await createMissingUserRecords(authUser)
         
-        try {
-          const [userResult, profileResult] = await Promise.all([
+        if (created) {
+          // Retry fetching after creation
+          const [retryUserResult, retryProfileResult] = await Promise.all([
             supabase
               .from('users')
               .select('*')
-              .eq('id', userId)
+              .eq('id', authUser.id)
               .maybeSingle(),
             supabase
               .from('profiles')
               .select('*')
-              .eq('user_id', userId)
+              .eq('user_id', authUser.id)
               .maybeSingle()
           ])
-
-          if (userResult.data && !userResult.error) {
-            userData = userResult.data
-            console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
-          } else if (userResult.error) {
-            console.error('❌ Error fetching user data:', userResult.error)
-          } else {
-            console.log('⏳ User data not yet available')
-          }
-
-          if (profileResult.data && !profileResult.error) {
-            profileData = profileResult.data
-            console.log('✅ Profile data fetched:', { name: profileData.full_name })
-          } else if (profileResult.error) {
-            console.error('❌ Error fetching profile data:', profileResult.error)
-          } else {
-            console.log('⏳ Profile data not yet available')
-          }
-
-          // If we have both, break out of the loop
-          if (userData && profileData) {
-            break
-          }
-
-        } catch (error) {
-          console.error(`❌ Error in fetch attempt ${retryCount + 1}:`, error)
-        }
-
-        // If we don't have both user and profile data, wait and retry
-        if (!userData || !profileData) {
-          retryCount++
-          if (retryCount < maxRetries) {
-            console.log(`⏳ Waiting ${retryDelay}ms for database triggers to complete...`)
-            await new Promise(resolve => setTimeout(resolve, retryDelay))
-          }
+          
+          userData = retryUserResult.data
+          profileData = retryProfileResult.data
         }
       }
 
       if (!userData || !profileData) {
-        console.error('❌ Failed to fetch user data after all retries')
-        // Check if user exists in Supabase auth but not in our custom tables
-        const { data: authUser } = await supabase.auth.getUser()
-        if (authUser.user) {
-          console.error('❌ User exists in auth but not in database. Please contact support.')
-          throw new Error('User account not properly set up. Please contact support or try signing up again.')
-        } else {
-          throw new Error('User does not exist. Please sign up first.')
-        }
+        console.error('❌ Still missing user data after creation attempt')
+        throw new Error('Failed to create or retrieve user account data. Please try signing up again.')
       }
 
-      console.log('🎯 Setting user state:', { id: userData.id, role: userData.role })
-      console.log('🎯 Setting profile state:', { name: profileData.full_name })
+      console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
+      console.log('✅ Profile data fetched:', { name: profileData.full_name })
       
       setUser(userData)
       setProfile(profileData)
