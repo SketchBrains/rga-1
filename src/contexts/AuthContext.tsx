@@ -44,9 +44,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
+        console.log('🔄 Initializing auth...')
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
-          console.error('Error getting session:', error.message, error)
+          console.error('❌ Error getting session:', error.message)
           if (mounted) {
             setSession(null)
             setUser(null)
@@ -56,6 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return
         }
 
+        console.log('📋 Initial session:', session?.user?.id ? 'Found' : 'None')
         if (mounted) {
           setSession(session)
           if (session?.user) {
@@ -65,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (error) {
-        console.error('Error initializing auth:', error)
+        console.error('❌ Error initializing auth:', error)
         if (mounted) {
           setSession(null)
           setUser(null)
@@ -81,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return
 
-        console.log('Auth state changed:', event, session?.user?.id)
+        console.log('🔄 Auth state changed:', event, session?.user?.id || 'No user')
         
         if (event === 'SIGNED_OUT' || !session) {
           if (session?.user?.id) {
@@ -91,10 +93,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null)
           setProfile(null)
           setLoading(false)
+          console.log('👋 User signed out')
           return
         }
 
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('✅ User signed in, fetching data...')
           setSession(session)
           if (session?.user) {
             await fetchUserData(session.user.id)
@@ -123,88 +127,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserData = async (userId: string) => {
     try {
-      console.log('Fetching user data for:', userId)
+      console.log('🔍 Fetching user data for:', userId)
       
       const cached = userDataCache.get(userId)
       const now = Date.now()
       
       if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        console.log('Using cached user data')
+        console.log('💾 Using cached user data')
         setUser(cached.user)
         setProfile(cached.profile)
         setLoading(false)
         return
       }
 
-      // Fetch user and profile data
-      const [userResult, profileResult] = await Promise.all([
-        supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle()
-      ])
-
+      // Fetch user and profile data with retries
       let userData = null
       let profileData = null
+      let retryCount = 0
+      const maxRetries = 3
 
-      if (userResult.data && !userResult.error) {
-        userData = userResult.data
-        console.log('User data fetched:', userData)
-      } else if (userResult.error) {
-        console.error('Error fetching user data:', userResult.error)
-        // If user doesn't exist in our database, create it
-        if (userResult.error.code === 'PGRST116') {
-          console.log('User not found in database, will be created by trigger')
-        }
-      }
-
-      if (profileResult.data && !profileResult.error) {
-        profileData = profileResult.data
-        console.log('Profile data fetched:', profileData)
-      } else if (profileResult.error) {
-        console.error('Error fetching profile data:', profileResult.error)
-        if (profileResult.error.code === 'PGRST116') {
-          console.log('Profile not found in database, will be created by trigger')
-        }
-      }
-
-      // If we don't have user data, wait a moment for the trigger to create it
-      if (!userData) {
-        console.log('Waiting for user creation trigger...')
-        await new Promise(resolve => setTimeout(resolve, 1000))
+      while (retryCount < maxRetries && (!userData || !profileData)) {
+        console.log(`🔄 Attempt ${retryCount + 1} to fetch user data...`)
         
-        const { data: retryUserData, error: retryUserError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle()
-          
-        if (retryUserData && !retryUserError) {
-          userData = retryUserData
-          console.log('User data found after retry:', userData)
-        }
-      }
+        const [userResult, profileResult] = await Promise.all([
+          supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle()
+        ])
 
-      // If we don't have profile data, wait a moment for the trigger to create it
-      if (!profileData) {
-        console.log('Waiting for profile creation trigger...')
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        const { data: retryProfileData, error: retryProfileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle()
-          
-        if (retryProfileData && !retryProfileError) {
-          profileData = retryProfileData
-          console.log('Profile data found after retry:', profileData)
+        if (userResult.data && !userResult.error) {
+          userData = userResult.data
+          console.log('✅ User data fetched:', userData.role)
+        } else if (userResult.error && userResult.error.code !== 'PGRST116') {
+          console.error('❌ Error fetching user data:', userResult.error)
+        }
+
+        if (profileResult.data && !profileResult.error) {
+          profileData = profileResult.data
+          console.log('✅ Profile data fetched:', profileData.full_name)
+        } else if (profileResult.error && profileResult.error.code !== 'PGRST116') {
+          console.error('❌ Error fetching profile data:', profileResult.error)
+        }
+
+        // If we don't have both user and profile data, wait and retry
+        if (!userData || !profileData) {
+          retryCount++
+          if (retryCount < maxRetries) {
+            console.log('⏳ Waiting for database triggers to complete...')
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        } else {
+          break
         }
       }
 
@@ -217,24 +197,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(userData)
       setProfile(profileData)
-      console.log('User and profile data set successfully')
+      
+      console.log('🎉 User data set successfully:', {
+        userId: userData?.id,
+        role: userData?.role,
+        name: profileData?.full_name
+      })
     } catch (error) {
-      console.error('Error fetching user data:', error)
+      console.error('❌ Error fetching user data:', error)
     } finally {
       setLoading(false)
-      console.log('Loading set to false')
+      console.log('✅ Loading complete')
     }
   }
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('🔐 Attempting sign in for:', email)
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
       if (error) throw new Error(`Sign-in failed: ${error.message}`)
+      console.log('✅ Sign in successful')
       // Don't set loading here - let the auth state change handler manage it
     } catch (error) {
+      console.error('❌ Sign in error:', error)
       throw error
     }
   }
@@ -340,12 +328,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      console.log('👋 Signing out...')
       if (user?.id) {
         userDataCache.delete(user.id)
       }
       
       const { error } = await supabase.auth.signOut()
       if (error) throw new Error(`Sign-out failed: ${error.message}`)
+      console.log('✅ Sign out successful')
     } catch (error) {
       console.error('Error signing out:', error)
     }

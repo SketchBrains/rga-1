@@ -26,10 +26,11 @@ const AppContent: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  console.log('AppContent render - user:', user, 'loading:', loading)
+  console.log('🔍 AppContent render - user:', user?.id, 'role:', user?.role, 'loading:', loading)
 
-  // Show loading screen with timeout
+  // Show loading screen while authentication is being determined
   if (loading) {
+    console.log('⏳ Showing loading screen')
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 flex items-center justify-center p-4">
         <div className="text-center">
@@ -43,19 +44,22 @@ const AppContent: React.FC = () => {
 
   // Show landing page if no user and not showing auth
   if (!user && !showAuth) {
+    console.log('🏠 Showing landing page')
     return <LandingPage onShowAuth={() => setShowAuth(true)} />
   }
 
   // Show auth form if no user and showing auth
   if (!user && showAuth) {
+    console.log('🔐 Showing auth form')
     return <AuthForm onBackToLanding={() => setShowAuth(false)} />
   }
 
   // User is authenticated, show appropriate dashboard
-  console.log('User is authenticated, role:', user.role)
+  console.log('🎉 User is authenticated, role:', user.role, 'showing dashboard')
   
   const renderContent = () => {
     if (user.role === 'admin') {
+      console.log('👨‍💼 Rendering admin dashboard, activeTab:', activeTab)
       switch (activeTab) {
         case 'dashboard':
           return <AdminDashboard />
@@ -71,6 +75,7 @@ const AppContent: React.FC = () => {
           return <AdminDashboard />
       }
     } else {
+      console.log('👨‍🎓 Rendering student dashboard, activeTab:', activeTab)
       switch (activeTab) {
         case 'dashboard':
           return <StudentDashboard />
