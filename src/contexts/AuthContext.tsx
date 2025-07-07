@@ -159,26 +159,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .from('users')
               .select('*')
               .eq('id', userId)
-              .single(),
+              .maybeSingle(),
             supabase
               .from('profiles')
               .select('*')
               .eq('user_id', userId)
-              .single()
+              .maybeSingle()
           ])
 
           if (userResult.data && !userResult.error) {
             userData = userResult.data
             console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
-          } else {
+          } else if (userResult.error) {
             console.error('❌ Error fetching user data:', userResult.error)
+          } else {
+            console.log('⏳ User data not yet available')
           }
 
           if (profileResult.data && !profileResult.error) {
             profileData = profileResult.data
             console.log('✅ Profile data fetched:', { name: profileData.full_name })
-          } else {
+          } else if (profileResult.error) {
             console.error('❌ Error fetching profile data:', profileResult.error)
+          } else {
+            console.log('⏳ Profile data not yet available')
           }
 
           // If we have both, break out of the loop
