@@ -8,15 +8,9 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, fullName: string, password: string) => Promise<{ user: User | null; session: Session | null }>
+  signUp: (email: string, fullName: string, password: string) => Promise<void>
   signOut: () => Promise<void>
-  verifyOtp: (email: string, otp: string) => Promise<void>
-  setPassword: (password: string) => Promise<void>
-  resendOtp: (email: string) => Promise<void>
-  resetPassword: (email: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
-  updateLanguage: (language: 'english' | 'hindi') => Promise<void>
-  signInWithGoogle: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -37,12 +31,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let mounted = true
-    let authSubscription: any = null
 
     const initializeAuth = async () => {
       try {
         console.log('🔄 Initializing auth...')
         const { data: { session }, error } = await supabase.auth.getSession()
+        
         if (error) {
           console.error('❌ Error getting session:', error.message)
           if (mounted) {
@@ -58,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (mounted) {
           setSession(session)
           if (session?.user) {
-            await fetchUserData(session.user)
+            await fetchUserData(session.user.id)
           } else {
             setLoading(false)
           }
@@ -95,189 +89,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('✅ User signed in, fetching data...')
           setSession(session)
           if (session?.user) {
-            await fetchUserData(session.user)
+            await fetchUserData(session.user.id)
           } else {
             setLoading(false)
           }
         }
       })
 
-      authSubscription = subscription
+      return subscription
     }
 
     initializeAuth().then(() => {
       if (mounted) {
-        setupAuthListener()
+        const subscription = setupAuthListener()
+        return () => subscription.unsubscribe()
       }
     })
 
     return () => {
       mounted = false
-      if (authSubscription) {
-        authSubscription.unsubscribe()
-      }
     }
   }, [])
 
-  const cleanupDuplicateProfiles = async (userId: string) => {
+  const fetchUserData = async (userId: string) => {
     try {
-      console.log('🧹 Cleaning up duplicate profiles for user:', userId)
+      console.log('🔍 Fetching user data for:', userId)
       
-      // Get all profiles for this user
-      const { data: profiles, error } = await supabase
+      // Fetch user data
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (userError) {
+        console.error('❌ Error fetching user:', userError)
+        throw new Error('Failed to fetch user data')
+      }
+
+      // Fetch profile data
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true })
-
-      if (error) {
-        console.error('❌ Error fetching profiles for cleanup:', error)
-        return false
-      }
-
-      if (!profiles || profiles.length <= 1) {
-        console.log('✅ No duplicate profiles found')
-        return true
-      }
-
-      console.log(`🔍 Found ${profiles.length} profiles, keeping the first one and removing duplicates`)
-      
-      // Keep the first profile (oldest) and delete the rest
-      const profilesToDelete = profiles.slice(1)
-      
-      for (const profile of profilesToDelete) {
-        const { error: deleteError } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('id', profile.id)
-        
-        if (deleteError) {
-          console.error('❌ Error deleting duplicate profile:', deleteError)
-        } else {
-          console.log('✅ Deleted duplicate profile:', profile.id)
-        }
-      }
-
-      return true
-    } catch (error) {
-      console.error('❌ Error cleaning up duplicate profiles:', error)
-      return false
-    }
-  }
-
-  const ensureUserRecords = async (authUser: SupabaseUser) => {
-    try {
-      console.log('🔧 Ensuring user records exist for:', authUser.id)
-      
-      // Try to create user record with onConflict to handle existing records
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authUser.id,
-          email: authUser.email!,
-          role: 'student',
-          language: 'english'
-        })
-        .onConflict('id')
-        .ignoreDuplicates()
-
-      if (userError) {
-        console.error('❌ Error creating user record:', userError)
-        // Don't throw here, continue to try profile creation
-      }
-
-      // Try to create profile record with onConflict to handle existing records
-      const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authUser.id,
-          full_name: fullName
-        })
-        .onConflict('user_id')
-        .ignoreDuplicates()
+        .single()
 
       if (profileError) {
-        console.error('❌ Error creating profile record:', profileError)
-        // Don't throw here, the records might already exist
-      }
-
-      console.log('✅ User records ensured')
-      return true
-    } catch (error) {
-      console.error('❌ Failed to ensure user records:', error)
-      return false
-    }
-  }
-
-  const fetchUserData = async (authUser: SupabaseUser) => {
-    try {
-      console.log('🔍 Fetching user data for:', authUser.id)
-      
-      // First ensure user records exist
-      await ensureUserRecords(authUser)
-      
-      // Clean up any duplicate profiles first
-      await cleanupDuplicateProfiles(authUser.id)
-      
-      // Add a small delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // Fetch user and profile data with retries
-      let userData = null
-      let profileData = null
-      let retries = 3
-      
-      while (retries > 0 && (!userData || !profileData)) {
-        console.log(`🔄 Fetching user data (attempt ${4 - retries})...`)
-        
-        try {
-          // Fetch user data
-          const { data: userResult, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authUser.id)
-            .maybeSingle() // Use single() instead of maybeSingle() since we know the user should exist
-
-          if (userError) {
-            console.error('❌ Error fetching user:', userError)
-          } else if (userResult) {
-            userData = userResult
-            console.log('✅ User data fetched successfully')
-          }
-
-          // Fetch profile data - use maybeSingle() to handle potential missing records
-          const { data: profileResult, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', authUser.id)
-            .maybeSingle()
-
-          if (profileError) {
-            console.error('❌ Error fetching profile:', profileError)
-          } else if (profileResult) {
-            profileData = profileResult
-            console.log('✅ Profile data fetched successfully')
-          }
-
-        } catch (fetchError) {
-          console.error('❌ Error in fetch attempt:', fetchError)
-        }
-
-        if (!userData || !profileData) {
-          retries--
-          if (retries > 0) {
-            console.log('⏳ Retrying in 1 second...')
-            await new Promise(resolve => setTimeout(resolve, 1000))
-          }
-        } else {
-          break
-        }
-      }
-
-      if (!userData || !profileData) {
-        console.error('❌ Failed to fetch user data after retries')
-        throw new Error('Unable to retrieve user account data. Please try refreshing the page.')
+        console.error('❌ Error fetching profile:', profileError)
+        throw new Error('Failed to fetch profile data')
       }
 
       console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
@@ -286,17 +145,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userData)
       setProfile(profileData)
       
-      console.log('🎉 User data set successfully:', {
-        userId: userData.id,
-        role: userData.role,
-        name: profileData.full_name
-      })
     } catch (error) {
       console.error('❌ Error fetching user data:', error)
       throw error
     } finally {
       setLoading(false)
-      console.log('✅ Loading complete')
     }
   }
 
@@ -318,7 +171,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       console.log('✅ Sign in successful')
-      // Don't set loading to false here - let the auth state change handler manage it
     } catch (error) {
       console.error('❌ Sign in error:', error)
       setLoading(false)
@@ -328,6 +180,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, fullName: string, password: string) => {
     try {
+      console.log('🔐 Attempting sign up for:', email)
+      setLoading(true)
+
       // Validate inputs
       if (!email || !email.includes('@')) {
         throw new Error('Invalid email address')
@@ -346,102 +201,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
       
-      if (error) throw new Error(`Auth signup failed: ${error.message}`)
+      if (error) throw new Error(`Sign-up failed: ${error.message}`)
 
-      if (data.user && !data.session) {
-        // User needs to verify email with OTP
-        return { user: null, session: null }
-      }
-
+      console.log('✅ Sign up successful')
       // The database trigger will handle creating user and profile records
-      return { user: null, session: data.session }
     } catch (error) {
-      console.error('Signup error:', error)
-      throw error
-    }
-  }
-
-  const verifyOtp = async (email: string, otp: string) => {
-    try {
-      console.log('🔐 Verifying OTP for:', email)
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'signup'
-      })
-      
-      if (error) throw new Error(`OTP verification failed: ${error.message}`)
-      
-      console.log('✅ OTP verified successfully')
-      // After successful OTP verification, the user should be signed in
-      // The auth state change handler will fetch user data
-    } catch (error) {
-      console.error('OTP verification error:', error)
-      throw error
-    }
-  }
-
-  const setPassword = async (password: string) => {
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: password
-      })
-      
-      if (error) throw new Error(`Set password failed: ${error.message}`)
-      
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error('Set password error:', error)
-      throw error
-    }
-  }
-
-  const resendOtp = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email
-      })
-      
-      if (error) throw new Error(`Resend OTP failed: ${error.message}`)
-    } catch (error) {
-      console.error('Resend OTP error:', error)
-      throw error
-    }
-  }
-
-  const resetPassword = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      })
-      
-      if (error) throw new Error(`Password reset failed: ${error.message}`)
-    } catch (error) {
-      console.error('Password reset error:', error)
-      throw error
-    }
-  }
-
-  const signInWithGoogle = async () => {
-    try {
-      console.log('🔐 Attempting Google sign in...')
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-      
-      if (error) throw new Error(`Google sign-in failed: ${error.message}`)
-      
-      console.log('✅ Google sign in initiated')
-    } catch (error) {
-      console.error('❌ Google sign in error:', error)
+      console.error('❌ Sign up error:', error)
+      setLoading(false)
       throw error
     }
   }
@@ -456,7 +225,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error signing out:', error)
     }
-    // Don't manually set states here - let the auth state change handler manage it
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
@@ -476,23 +244,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(updatedProfile)
   }
 
-  const updateLanguage = async (language: 'english' | 'hindi') => {
-    if (!user) return
-    
-    const { error } = await supabase
-      .from('users')
-      .update({ 
-        language,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', user.id)
-
-    if (error) throw new Error(`Update language failed: ${error.message}`)
-    
-    const updatedUser = { ...user, language }
-    setUser(updatedUser)
-  }
-
   const value = {
     user,
     profile,
@@ -501,13 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
-    verifyOtp,
-    setPassword,
-    resendOtp,
-    resetPassword,
     updateProfile,
-    updateLanguage,
-    signInWithGoogle,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
