@@ -119,11 +119,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const createMissingUserRecords = async (authUser: SupabaseUser) => {
+  const ensureUserRecords = async (authUser: SupabaseUser) => {
     try {
-      console.log('🔧 Creating missing user records for:', authUser.id)
+      console.log('🔧 Ensuring user records exist for:', authUser.id)
       
-      // Create user record
+      // Try to create user record (will be ignored if exists due to ON CONFLICT)
       const { error: userError } = await supabase
         .from('users')
         .insert({
@@ -133,12 +133,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           language: 'english'
         })
 
+      // Only log error if it's not a duplicate key error
       if (userError && userError.code !== '23505') {
         console.error('❌ Error creating user record:', userError)
         throw userError
       }
 
-      // Create profile record
+      // Try to create profile record (will be ignored if exists due to ON CONFLICT)
       const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
       const { error: profileError } = await supabase
         .from('profiles')
@@ -147,15 +148,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: fullName
         })
 
+      // Only log error if it's not a duplicate key error
       if (profileError && profileError.code !== '23505') {
         console.error('❌ Error creating profile record:', profileError)
         throw profileError
       }
 
-      console.log('✅ Successfully created missing user records')
+      console.log('✅ User records ensured')
       return true
     } catch (error) {
-      console.error('❌ Failed to create missing user records:', error)
+      console.error('❌ Failed to ensure user records:', error)
       return false
     }
   }
@@ -164,51 +166,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 Fetching user data for:', authUser.id)
       
-      // Try to fetch user and profile data
-      const [userResult, profileResult] = await Promise.all([
-        supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .maybeSingle()
-      ])
-
-      let userData = userResult.data
-      let profileData = profileResult.data
-
-      // If user or profile data is missing, try to create it
-      if (!userData || !profileData) {
-        console.log('⚠️ Missing user records, attempting to create them...')
-        const created = await createMissingUserRecords(authUser)
+      // First ensure user records exist
+      await ensureUserRecords(authUser)
+      
+      // Add a small delay to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Fetch user and profile data with retries
+      let userData = null
+      let profileData = null
+      let retries = 3
+      
+      while (retries > 0 && (!userData || !profileData)) {
+        console.log(`🔄 Fetching user data (attempt ${4 - retries})...`)
         
-        if (created) {
-          // Retry fetching after creation
-          const [retryUserResult, retryProfileResult] = await Promise.all([
-            supabase
-              .from('users')
-              .select('*')
-              .eq('id', authUser.id)
-              .maybeSingle(),
-            supabase
-              .from('profiles')
-              .select('*')
-              .eq('user_id', authUser.id)
-              .maybeSingle()
-          ])
-          
-          userData = retryUserResult.data
-          profileData = retryProfileResult.data
+        const [userResult, profileResult] = await Promise.all([
+          supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUser.id)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', authUser.id)
+            .maybeSingle()
+        ])
+
+        if (userResult.error) {
+          console.error('❌ Error fetching user:', userResult.error)
+        } else {
+          userData = userResult.data
+        }
+
+        if (profileResult.error) {
+          console.error('❌ Error fetching profile:', profileResult.error)
+        } else {
+          profileData = profileResult.data
+        }
+
+        if (!userData || !profileData) {
+          retries--
+          if (retries > 0) {
+            console.log('⏳ Retrying in 1 second...')
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        } else {
+          break
         }
       }
 
       if (!userData || !profileData) {
-        console.error('❌ Still missing user data after creation attempt')
-        throw new Error('Failed to create or retrieve user account data. Please try signing up again.')
+        console.error('❌ Failed to fetch user data after retries')
+        throw new Error('Unable to retrieve user account data. Please try refreshing the page.')
       }
 
       console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
