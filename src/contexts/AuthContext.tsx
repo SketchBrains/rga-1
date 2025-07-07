@@ -28,10 +28,6 @@ export const useAuth = () => {
   return context
 }
 
-// Cache for user data to prevent unnecessary refetching
-const userDataCache = new Map<string, { user: User | null, profile: Profile | null, timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -86,9 +82,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔄 Auth state changed:', event, session?.user?.id || 'No user')
         
         if (event === 'SIGNED_OUT' || !session) {
-          if (session?.user?.id) {
-            userDataCache.delete(session.user.id)
-          }
           setSession(null)
           setUser(null)
           setProfile(null)
@@ -129,26 +122,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 Fetching user data for:', userId)
       
-      // Check cache but validate it has actual data
-      const cached = userDataCache.get(userId)
-      const now = Date.now()
-      
-      if (cached && (now - cached.timestamp) < CACHE_DURATION && cached.user && cached.profile) {
-        console.log('💾 Using cached user data:', { role: cached.user.role, name: cached.profile.full_name })
-        setUser(cached.user)
-        setProfile(cached.profile)
-        setLoading(false)
-        return
-      } else if (cached) {
-        console.log('🗑️ Clearing invalid cache data')
-        userDataCache.delete(userId)
-      }
-
-      // Fetch user and profile data with retries
+      // Fetch user and profile data with increased retries and longer delays
       let userData = null
       let profileData = null
       let retryCount = 0
-      const maxRetries = 3
+      const maxRetries = 5 // Increased from 3 to 5
+      const retryDelay = 2000 // Increased from 1500ms to 2000ms
 
       while (retryCount < maxRetries && (!userData || !profileData)) {
         console.log(`🔄 Attempt ${retryCount + 1} to fetch user data...`)
@@ -198,24 +177,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!userData || !profileData) {
           retryCount++
           if (retryCount < maxRetries) {
-            console.log('⏳ Waiting for database triggers to complete...')
-            await new Promise(resolve => setTimeout(resolve, 1500))
+            console.log(`⏳ Waiting ${retryDelay}ms for database triggers to complete...`)
+            await new Promise(resolve => setTimeout(resolve, retryDelay))
           }
         }
       }
 
       if (!userData || !profileData) {
         console.error('❌ Failed to fetch user data after all retries')
-        setLoading(false)
-        return
+        // Check if user exists in Supabase auth but not in our custom tables
+        const { data: authUser } = await supabase.auth.getUser()
+        if (authUser.user) {
+          console.error('❌ User exists in auth but not in database. Please contact support.')
+          throw new Error('User account not properly set up. Please contact support or try signing up again.')
+        } else {
+          throw new Error('User does not exist. Please sign up first.')
+        }
       }
-
-      // Cache the data only if we have valid data
-      userDataCache.set(userId, {
-        user: userData,
-        profile: profileData,
-        timestamp: now
-      })
 
       console.log('🎯 Setting user state:', { id: userData.id, role: userData.role })
       console.log('🎯 Setting profile state:', { name: profileData.full_name })
@@ -230,6 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     } catch (error) {
       console.error('❌ Error fetching user data:', error)
+      throw error
     } finally {
       setLoading(false)
       console.log('✅ Loading complete')
@@ -239,15 +218,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       console.log('🔐 Attempting sign in for:', email)
+      setLoading(true)
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      if (error) throw new Error(`Sign-in failed: ${error.message}`)
+      
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password. Please check your credentials and try again.')
+        }
+        throw new Error(`Sign-in failed: ${error.message}`)
+      }
+      
       console.log('✅ Sign in successful')
-      // Don't set loading here - let the auth state change handler manage it
+      // Don't set loading to false here - let the auth state change handler manage it
     } catch (error) {
       console.error('❌ Sign in error:', error)
+      setLoading(false)
       throw error
     }
   }
@@ -354,9 +343,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       console.log('👋 Signing out...')
-      if (user?.id) {
-        userDataCache.delete(user.id)
-      }
       
       const { error } = await supabase.auth.signOut()
       if (error) throw new Error(`Sign-out failed: ${error.message}`)
@@ -382,17 +368,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const updatedProfile = profile ? { ...profile, ...updates } : null
     setProfile(updatedProfile)
-    
-    if (user.id) {
-      const cached = userDataCache.get(user.id)
-      if (cached) {
-        userDataCache.set(user.id, {
-          ...cached,
-          profile: updatedProfile,
-          timestamp: Date.now()
-        })
-      }
-    }
   }
 
   const updateLanguage = async (language: 'english' | 'hindi') => {
@@ -410,17 +385,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const updatedUser = { ...user, language }
     setUser(updatedUser)
-    
-    if (user.id) {
-      const cached = userDataCache.get(user.id)
-      if (cached) {
-        userDataCache.set(user.id, {
-          ...cached,
-          user: updatedUser,
-          timestamp: Date.now()
-        })
-      }
-    }
   }
 
   const value = {
