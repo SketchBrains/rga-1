@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { BookOpen, AlertCircle, Loader } from 'lucide-react'
+import { BookOpen, AlertCircle, Loader, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const GoogleCallback: React.FC = () => {
@@ -10,6 +10,7 @@ const GoogleCallback: React.FC = () => {
   const { language } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     handleAuthCallback()
@@ -52,6 +53,7 @@ const GoogleCallback: React.FC = () => {
         return
       }
 
+      // Handle regular OAuth callback
       const { data, error } = await supabase.auth.getSession()
       
       if (error) {
@@ -62,8 +64,14 @@ const GoogleCallback: React.FC = () => {
       }
 
       if (data.session) {
+        console.log('✅ Authentication successful, session found')
+        setSuccess(true)
         toast.success('Authentication successful!')
-        navigate('/')
+        
+        // Small delay to show success state
+        setTimeout(() => {
+          navigate('/')
+        }, 1500)
       } else {
         setError('No authentication session found')
         setLoading(false)
@@ -85,6 +93,26 @@ const GoogleCallback: React.FC = () => {
     navigate('/')
   }
 
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            {language === 'hindi' ? 'सफल!' : 'Success!'}
+          </h2>
+          <p className="text-gray-600">
+            {language === 'hindi' 
+              ? 'प्रमाणीकरण सफल रहा। आपको डैशबोर्ड पर भेजा जा रहा है...'
+              : 'Authentication successful. Redirecting to dashboard...'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 flex items-center justify-center p-4">
@@ -97,8 +125,8 @@ const GoogleCallback: React.FC = () => {
           </h2>
           <p className="text-gray-600">
             {language === 'hindi' 
-              ? 'कृपया प्रतीक्षा करें'
-              : 'Please wait while we process your request'}
+              ? 'कृपया प्रतीक्षा करें जब तक हम आपके अनुरोध को संसाधित करते हैं'
+              : 'Please wait while we process your authentication'}
           </p>
         </div>
       </div>

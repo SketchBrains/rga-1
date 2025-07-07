@@ -16,6 +16,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   updateLanguage: (language: 'english' | 'hindi') => Promise<void>
+  signInWithGoogle: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -297,6 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyOtp = async (email: string, otp: string) => {
     try {
+      console.log('🔐 Verifying OTP for:', email)
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
@@ -305,6 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw new Error(`OTP verification failed: ${error.message}`)
       
+      console.log('✅ OTP verified successfully')
       // After successful OTP verification, the user should be signed in
       // The auth state change handler will fetch user data
     } catch (error) {
@@ -351,6 +354,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw new Error(`Password reset failed: ${error.message}`)
     } catch (error) {
       console.error('Password reset error:', error)
+      throw error
+    }
+  }
+
+  const signInWithGoogle = async () => {
+    try {
+      console.log('🔐 Attempting Google sign in...')
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      
+      if (error) throw new Error(`Google sign-in failed: ${error.message}`)
+      
+      console.log('✅ Google sign in initiated')
+    } catch (error) {
+      console.error('❌ Google sign in error:', error)
       throw error
     }
   }
@@ -416,6 +438,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetPassword,
     updateProfile,
     updateLanguage,
+    signInWithGoogle,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
