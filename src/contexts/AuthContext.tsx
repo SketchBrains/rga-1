@@ -235,7 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .from('users')
             .select('*')
             .eq('id', authUser.id)
-            .single() // Use single() instead of maybeSingle() since we know the user should exist
+            .maybeSingle() // Use single() instead of maybeSingle() since we know the user should exist
 
           if (userError) {
             console.error('❌ Error fetching user:', userError)
