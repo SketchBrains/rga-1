@@ -129,15 +129,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 Fetching user data for:', userId)
       
+      // Check cache but validate it has actual data
       const cached = userDataCache.get(userId)
       const now = Date.now()
       
-      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        console.log('💾 Using cached user data')
+      if (cached && (now - cached.timestamp) < CACHE_DURATION && cached.user && cached.profile) {
+        console.log('💾 Using cached user data:', { role: cached.user.role, name: cached.profile.full_name })
         setUser(cached.user)
         setProfile(cached.profile)
         setLoading(false)
         return
+      } else if (cached) {
+        console.log('🗑️ Clearing invalid cache data')
+        userDataCache.delete(userId)
       }
 
       // Fetch user and profile data with retries
@@ -149,31 +153,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       while (retryCount < maxRetries && (!userData || !profileData)) {
         console.log(`🔄 Attempt ${retryCount + 1} to fetch user data...`)
         
-        const [userResult, profileResult] = await Promise.all([
-          supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .maybeSingle(),
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', userId)
-            .maybeSingle()
-        ])
+        try {
+          const [userResult, profileResult] = await Promise.all([
+            supabase
+              .from('users')
+              .select('*')
+              .eq('id', userId)
+              .single(),
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', userId)
+              .single()
+          ])
 
-        if (userResult.data && !userResult.error) {
-          userData = userResult.data
-          console.log('✅ User data fetched:', userData.role)
-        } else if (userResult.error && userResult.error.code !== 'PGRST116') {
-          console.error('❌ Error fetching user data:', userResult.error)
-        }
+          if (userResult.data && !userResult.error) {
+            userData = userResult.data
+            console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
+          } else {
+            console.error('❌ Error fetching user data:', userResult.error)
+          }
 
-        if (profileResult.data && !profileResult.error) {
-          profileData = profileResult.data
-          console.log('✅ Profile data fetched:', profileData.full_name)
-        } else if (profileResult.error && profileResult.error.code !== 'PGRST116') {
-          console.error('❌ Error fetching profile data:', profileResult.error)
+          if (profileResult.data && !profileResult.error) {
+            profileData = profileResult.data
+            console.log('✅ Profile data fetched:', { name: profileData.full_name })
+          } else {
+            console.error('❌ Error fetching profile data:', profileResult.error)
+          }
+
+          // If we have both, break out of the loop
+          if (userData && profileData) {
+            break
+          }
+
+        } catch (error) {
+          console.error(`❌ Error in fetch attempt ${retryCount + 1}:`, error)
         }
 
         // If we don't have both user and profile data, wait and retry
@@ -181,27 +195,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           retryCount++
           if (retryCount < maxRetries) {
             console.log('⏳ Waiting for database triggers to complete...')
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            await new Promise(resolve => setTimeout(resolve, 1500))
           }
-        } else {
-          break
         }
       }
 
-      // Cache the data
+      if (!userData || !profileData) {
+        console.error('❌ Failed to fetch user data after all retries')
+        setLoading(false)
+        return
+      }
+
+      // Cache the data only if we have valid data
       userDataCache.set(userId, {
         user: userData,
         profile: profileData,
         timestamp: now
       })
 
+      console.log('🎯 Setting user state:', { id: userData.id, role: userData.role })
+      console.log('🎯 Setting profile state:', { name: profileData.full_name })
+      
       setUser(userData)
       setProfile(profileData)
       
       console.log('🎉 User data set successfully:', {
-        userId: userData?.id,
-        role: userData?.role,
-        name: profileData?.full_name
+        userId: userData.id,
+        role: userData.role,
+        name: profileData.full_name
       })
     } catch (error) {
       console.error('❌ Error fetching user data:', error)
