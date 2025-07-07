@@ -119,6 +119,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
+  const cleanupDuplicateProfiles = async (userId: string) => {
+    try {
+      console.log('🧹 Cleaning up duplicate profiles for user:', userId)
+      
+      // Get all profiles for this user
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        console.error('❌ Error fetching profiles for cleanup:', error)
+        return false
+      }
+
+      if (!profiles || profiles.length <= 1) {
+        console.log('✅ No duplicate profiles found')
+        return true
+      }
+
+      console.log(`🔍 Found ${profiles.length} profiles, keeping the first one and removing duplicates`)
+      
+      // Keep the first profile (oldest) and delete the rest
+      const profilesToDelete = profiles.slice(1)
+      
+      for (const profile of profilesToDelete) {
+        const { error: deleteError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', profile.id)
+        
+        if (deleteError) {
+          console.error('❌ Error deleting duplicate profile:', deleteError)
+        } else {
+          console.log('✅ Deleted duplicate profile:', profile.id)
+        }
+      }
+
+      return true
+    } catch (error) {
+      console.error('❌ Error cleaning up duplicate profiles:', error)
+      return false
+    }
+  }
+
   const ensureUserRecords = async (authUser: SupabaseUser) => {
     try {
       console.log('🔧 Ensuring user records exist for:', authUser.id)
@@ -169,6 +215,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // First ensure user records exist
       await ensureUserRecords(authUser)
       
+      // Clean up any duplicate profiles first
+      await cleanupDuplicateProfiles(authUser.id)
+      
       // Add a small delay to ensure database consistency
       await new Promise(resolve => setTimeout(resolve, 500))
       
@@ -180,29 +229,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       while (retries > 0 && (!userData || !profileData)) {
         console.log(`🔄 Fetching user data (attempt ${4 - retries})...`)
         
-        const [userResult, profileResult] = await Promise.all([
-          supabase
+        try {
+          // Fetch user data
+          const { data: userResult, error: userError } = await supabase
             .from('users')
             .select('*')
             .eq('id', authUser.id)
-            .maybeSingle(),
-          supabase
+            .single() // Use single() instead of maybeSingle() since we know the user should exist
+
+          if (userError) {
+            console.error('❌ Error fetching user:', userError)
+          } else {
+            userData = userResult
+            console.log('✅ User data fetched successfully')
+          }
+
+          // Fetch profile data - use single() and handle the case where there might be duplicates
+          const { data: profileResult, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', authUser.id)
-            .maybeSingle()
-        ])
+            .limit(1)
+            .single()
 
-        if (userResult.error) {
-          console.error('❌ Error fetching user:', userResult.error)
-        } else {
-          userData = userResult.data
-        }
+          if (profileError) {
+            console.error('❌ Error fetching profile:', profileError)
+            
+            // If we get a multiple rows error, try to clean up and retry
+            if (profileError.code === 'PGRST116') {
+              console.log('🧹 Multiple profiles detected, cleaning up...')
+              await cleanupDuplicateProfiles(authUser.id)
+              // Continue to retry
+            }
+          } else {
+            profileData = profileResult
+            console.log('✅ Profile data fetched successfully')
+          }
 
-        if (profileResult.error) {
-          console.error('❌ Error fetching profile:', profileResult.error)
-        } else {
-          profileData = profileResult.data
+        } catch (fetchError) {
+          console.error('❌ Error in fetch attempt:', fetchError)
         }
 
         if (!userData || !profileData) {
