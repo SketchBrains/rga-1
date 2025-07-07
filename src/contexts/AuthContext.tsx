@@ -132,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           language: 'english'
         })
 
-      if (userError && !userError.message.includes('duplicate key')) {
+      if (userError && userError.code !== '23505') {
         console.error('❌ Error creating user record:', userError)
         throw userError
       }
@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: fullName
         })
 
-      if (profileError && !profileError.message.includes('duplicate key')) {
+      if (profileError && profileError.code !== '23505') {
         console.error('❌ Error creating profile record:', profileError)
         throw profileError
       }
