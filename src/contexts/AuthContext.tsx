@@ -169,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔧 Ensuring user records exist for:', authUser.id)
       
-      // Try to create user record (will be ignored if exists due to ON CONFLICT)
+      // Try to create user record with onConflict to handle existing records
       const { error: userError } = await supabase
         .from('users')
         .insert({
@@ -178,14 +178,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'student',
           language: 'english'
         })
+        .onConflict('id')
+        .ignoreDuplicates()
 
-      // Only log error if it's not a duplicate key error
-      if (userError && userError.code !== '23505') {
+      if (userError) {
         console.error('❌ Error creating user record:', userError)
-        throw userError
+        // Don't throw here, continue to try profile creation
       }
 
-      // Try to create profile record (will be ignored if exists due to ON CONFLICT)
+      // Try to create profile record with onConflict to handle existing records
       const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
       const { error: profileError } = await supabase
         .from('profiles')
@@ -193,11 +194,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id: authUser.id,
           full_name: fullName
         })
+        .onConflict('user_id')
+        .ignoreDuplicates()
 
-      // Only log error if it's not a duplicate key error
-      if (profileError && profileError.code !== '23505') {
+      if (profileError) {
         console.error('❌ Error creating profile record:', profileError)
-        throw profileError
+        // Don't throw here, the records might already exist
       }
 
       console.log('✅ User records ensured')
@@ -239,29 +241,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (userError) {
             console.error('❌ Error fetching user:', userError)
-          } else {
+          } else if (userResult) {
             userData = userResult
             console.log('✅ User data fetched successfully')
           }
 
-          // Fetch profile data - use single() and handle the case where there might be duplicates
+          // Fetch profile data - use maybeSingle() to handle potential missing records
           const { data: profileResult, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', authUser.id)
-            .limit(1)
-            .single()
+            .maybeSingle()
 
           if (profileError) {
             console.error('❌ Error fetching profile:', profileError)
-            
-            // If we get a multiple rows error, try to clean up and retry
-            if (profileError.code === 'PGRST116') {
-              console.log('🧹 Multiple profiles detected, cleaning up...')
-              await cleanupDuplicateProfiles(authUser.id)
-              // Continue to retry
-            }
-          } else {
+          } else if (profileResult) {
             profileData = profileResult
             console.log('✅ Profile data fetched successfully')
           }
