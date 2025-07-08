@@ -91,7 +91,14 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
     try {
       await verifyOtp(formData.email, formData.otp)
-      toast.success('Email verified successfully!')
+      
+      // Sign out the user immediately after OTP verification
+      // This prevents automatic login and forces password setting
+      await signOut()
+      
+      toast.success(language === 'hindi' 
+        ? 'ईमेल सत्यापित! अब अपना पासवर्ड सेट करें।'
+        : 'Email verified! Now set your password.')
       setCurrentStep('signup-set-password')
     } catch (error: any) {
       toast.error(error.message || 'Invalid OTP')
@@ -104,8 +111,38 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     e.preventDefault()
     setLoading(true)
 
+    // Password validation criteria
     if (!formData.newPassword || formData.newPassword.length < 6) {
-      toast.error(language === 'hindi' ? 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए' : 'Password must be at least 6 characters')
+      toast.error(language === 'hindi' 
+        ? 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए' 
+        : 'Password must be at least 6 characters long')
+      setLoading(false)
+      return
+    }
+
+    // Check for at least one uppercase letter
+    if (!/[A-Z]/.test(formData.newPassword)) {
+      toast.error(language === 'hindi' 
+        ? 'पासवर्ड में कम से कम एक बड़ा अक्षर होना चाहिए' 
+        : 'Password must contain at least one uppercase letter')
+      setLoading(false)
+      return
+    }
+
+    // Check for at least one number
+    if (!/[0-9]/.test(formData.newPassword)) {
+      toast.error(language === 'hindi' 
+        ? 'पासवर्ड में कम से कम एक संख्या होना चाहिए' 
+        : 'Password must contain at least one number')
+      setLoading(false)
+      return
+    }
+
+    // Check for at least one special character
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.newPassword)) {
+      toast.error(language === 'hindi' 
+        ? 'पासवर्ड में कम से कम एक विशेष चिह्न होना चाहिए (!@#$%^&* आदि)' 
+        : 'Password must contain at least one special character (!@#$%^&* etc.)')
       setLoading(false)
       return
     }
@@ -118,9 +155,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
     try {
       await setPassword(formData.newPassword)
-      toast.success(language === 'hindi' 
-        ? 'पासवर्ड सेट हो गया! अब लॉगिन करें।'
-        : 'Password set successfully! Please login now.')
+      
+      // Clear form data and redirect to login
       setFormData({
         email: formData.email,
         password: '',
@@ -129,6 +165,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         newPassword: '',
         confirmPassword: ''
       })
+      
+      toast.success(language === 'hindi' 
+        ? 'खाता सफलतापूर्वक बनाया गया! अब लॉगिन करें।'
+        : 'Account created successfully! You can now login.')
       setCurrentStep('login')
     } catch (error: any) {
       toast.error(error.message || 'Failed to set password')
@@ -489,9 +529,22 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
                   {language === 'hindi' 
-                    ? 'ईमेल सत्यापित! अब अपना पासवर्ड सेट करें'
-                    : 'Email verified! Now set your password'}
+                    ? 'अपना खाता सुरक्षित करने के लिए एक मजबूत पासवर्ड सेट करें'
+                    : 'Set a strong password to secure your account'}
                 </p>
+              </div>
+
+              {/* Password Requirements */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">
+                  {language === 'hindi' ? 'पासवर्ड आवश्यकताएं:' : 'Password Requirements:'}
+                </h4>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• {language === 'hindi' ? 'कम से कम 6 अक्षर लंबा' : 'At least 6 characters long'}</li>
+                  <li>• {language === 'hindi' ? 'कम से कम एक बड़ा अक्षर (A-Z)' : 'At least one uppercase letter (A-Z)'}</li>
+                  <li>• {language === 'hindi' ? 'कम से कम एक संख्या (0-9)' : 'At least one number (0-9)'}</li>
+                  <li>• {language === 'hindi' ? 'कम से कम एक विशेष चिह्न (!@#$%^&*)' : 'At least one special character (!@#$%^&*)'}</li>
+                </ul>
               </div>
 
               <div>
@@ -508,7 +561,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                     value={formData.newPassword}
                     onChange={handleInputChange}
                     className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                    placeholder={language === 'hindi' ? 'कम से कम 6 अक्षर' : 'At least 6 characters'}
+                    placeholder={language === 'hindi' ? 'मजबूत पासवर्ड दर्ज करें' : 'Enter a strong password'}
                   />
                 </div>
               </div>
@@ -609,8 +662,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         <div className="text-center text-xs sm:text-sm text-gray-600">
           <p>
             {language === 'hindi' 
-              ? 'खाता बनाकर आप हमारी सेवा की शर्तों और गोपनीयता नीति से सहमत हैं।'
-              : 'By creating an account, you agree to our Terms of Service and Privacy Policy.'}
+              ? currentStep === 'login' 
+                ? 'खाता बनाकर आप हमारी सेवा की शर्तों और गोपनीयता नीति से सहमत हैं।'
+                : 'आपका खाता सत्यापित है। अब आप RGA न्यास पोर्टल में लॉगिन कर सकते हैं।'
+              : currentStep === 'login' 
+                ? 'By creating an account, you agree to our Terms of Service and Privacy Policy.'
+                : 'Your account is now verified. You can login to RGA Nyas Portal.'}
           </p>
         </div>
       </div>
