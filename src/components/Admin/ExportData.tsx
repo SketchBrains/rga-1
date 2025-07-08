@@ -485,9 +485,9 @@ const ExportData: React.FC = () => {
           <button
             onClick={() => {
               setFilters({ ...filters, status: 'approved', dateFrom: '', dateTo: '' })
-              setTimeout(exportToCSV, 100)
+              setTimeout(() => exportToCSV(), 100)
             }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
           >
             <CheckCircle className="w-5 h-5" />
             <span>Export Approved</span>
@@ -495,9 +495,9 @@ const ExportData: React.FC = () => {
           <button
             onClick={() => {
               setFilters({ ...filters, status: 'pending', dateFrom: '', dateTo: '' })
-              setTimeout(exportToCSV, 100)
+              setTimeout(() => exportToCSV(), 100)
             }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200"
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors"
           >
             <Clock className="w-5 h-5" />
             <span>Export Pending</span>
@@ -512,9 +512,9 @@ const ExportData: React.FC = () => {
                 dateFrom: lastMonth.toISOString().split('T')[0],
                 dateTo: today.toISOString().split('T')[0]
               })
-              setTimeout(exportToCSV, 100)
+              setTimeout(() => exportToCSV(), 100)
             }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
           >
             <Calendar className="w-5 h-5" />
             <span>Export Last Month</span>
