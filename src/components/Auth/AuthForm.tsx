@@ -8,7 +8,7 @@ interface AuthFormProps {
   onBackToLanding: () => void
 }
 
-type AuthStep = 'login' | 'signup-request-otp' | 'signup-verify-otp' | 'signup-set-password' | 'forgot-password'
+type AuthStep = 'login' | 'signup-request-otp' | 'signup-verify-otp' | 'forgot-password'
 
 const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
   const [currentStep, setCurrentStep] = useState<AuthStep>('login')
@@ -17,9 +17,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     email: '',
     password: '',
     fullName: '',
+    signupPassword: '',
+    confirmSignupPassword: '',
     otp: '',
-    newPassword: '',
-    confirmPassword: ''
   })
 
   const { 
@@ -69,9 +69,22 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       return
     }
 
+    // Validate password
+    const passwordErrors = validatePassword(formData.signupPassword)
+    if (passwordErrors.length > 0) {
+      passwordErrors.forEach(error => toast.error(error))
+      setLoading(false)
+      return
+    }
+
+    if (formData.signupPassword !== formData.confirmSignupPassword) {
+      toast.error(language === 'hindi' ? 'पासवर्ड मेल नहीं खाते' : 'Passwords do not match')
+      setLoading(false)
+      return
+    }
     try {
       console.log('📧 Calling signUp function...')
-      const result = await signUp(formData.email, formData.fullName)
+      const result = await signUp(formData.email, formData.fullName, formData.signupPassword)
       console.log('✅ signUp result:', result)
       
       if (result.user && !result.session) {
@@ -102,15 +115,20 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       // Sign out the user immediately after OTP verification
       // This prevents automatic login and forces password setting
       await signOut()
-      
-      // Sign out the user immediately after OTP verification
-      // This prevents automatic login and forces password setting
-      await signOut()
-      
       toast.success(language === 'hindi' 
-        ? 'ईमेल सत्यापित! अब अपना पासवर्ड सेट करें।'
-        : 'Email verified! Now set your password.')
-      setCurrentStep('signup-set-password')
+        ? 'खाता सफलतापूर्वक बनाया गया! आप अब लॉगिन कर सकते हैं।'
+        : 'Account created successfully! You can now login.')
+      
+      // Clear form and go back to login
+      setFormData({
+        email: formData.email,
+        password: '',
+        fullName: '',
+        signupPassword: '',
+        confirmSignupPassword: '',
+        otp: ''
+      })
+      setCurrentStep('login')
     } catch (error: any) {
       toast.error(error.message || 'Invalid OTP')
     } finally {
@@ -118,74 +136,34 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     }
   }
 
-  const handleSetPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-
-    // Password validation criteria
-    if (!formData.newPassword || formData.newPassword.length < 6) {
-      toast.error(language === 'hindi' 
-        ? 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए' 
+  const validatePassword = (password: string): string[] => {
+    const errors: string[] = []
+    
+    if (password.length < 6) {
+      errors.push(language === 'hindi' 
+        ? 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए'
         : 'Password must be at least 6 characters long')
-      setLoading(false)
-      return
     }
-
-    // Check for at least one uppercase letter
-    if (!/[A-Z]/.test(formData.newPassword)) {
-      toast.error(language === 'hindi' 
-        ? 'पासवर्ड में कम से कम एक बड़ा अक्षर होना चाहिए' 
+    
+    if (!/[A-Z]/.test(password)) {
+      errors.push(language === 'hindi' 
+        ? 'पासवर्ड में कम से कम एक बड़ा अक्षर होना चाहिए'
         : 'Password must contain at least one uppercase letter')
-      setLoading(false)
-      return
     }
-
-    // Check for at least one number
-    if (!/[0-9]/.test(formData.newPassword)) {
-      toast.error(language === 'hindi' 
-        ? 'पासवर्ड में कम से कम एक संख्या होना चाहिए' 
+    
+    if (!/[0-9]/.test(password)) {
+      errors.push(language === 'hindi' 
+        ? 'पासवर्ड में कम से कम एक संख्या होना चाहिए'
         : 'Password must contain at least one number')
-      setLoading(false)
-      return
     }
-
-    // Check for at least one special character
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.newPassword)) {
-      toast.error(language === 'hindi' 
-        ? 'पासवर्ड में कम से कम एक विशेष चिह्न होना चाहिए (!@#$%^&* आदि)' 
+    
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      errors.push(language === 'hindi' 
+        ? 'पासवर्ड में कम से कम एक विशेष चिह्न होना चाहिए (!@#$%^&* आदि)'
         : 'Password must contain at least one special character (!@#$%^&* etc.)')
-      setLoading(false)
-      return
     }
-
-    if (formData.newPassword !== formData.confirmPassword) {
-      toast.error(language === 'hindi' ? 'पासवर्ड मेल नहीं खाते' : 'Passwords do not match')
-      setLoading(false)
-      return
-    }
-
-    try {
-      await setPassword(formData.newPassword)
-      
-      // Clear form data and redirect to login
-      setFormData({
-        email: formData.email,
-        password: '',
-        fullName: '',
-        otp: '',
-        newPassword: '',
-        confirmPassword: ''
-      })
-      
-      toast.success(language === 'hindi' 
-        ? 'खाता सफलतापूर्वक बनाया गया! अब लॉगिन करें।'
-        : 'Account created successfully! You can now login.')
-      setCurrentStep('login')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to set password')
-    } finally {
-      setLoading(false)
-    }
+    
+    return errors
   }
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -229,8 +207,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         return language === 'hindi' ? 'खाता बनाएं' : 'Create Account'
       case 'signup-verify-otp':
         return language === 'hindi' ? 'ईमेल सत्यापित करें' : 'Verify Email'
-      case 'signup-set-password':
-        return language === 'hindi' ? 'पासवर्ड सेट करें' : 'Set Password'
       case 'forgot-password':
         return language === 'hindi' ? 'पासवर्ड भूल गए' : 'Forgot Password'
       default:
@@ -252,10 +228,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         return language === 'hindi' 
           ? 'आपके ईमेल पर भेजा गया OTP दर्ज करें'
           : 'Enter the OTP sent to your email'
-      case 'signup-set-password':
-        return language === 'hindi' 
-          ? 'अपना नया पासवर्ड सेट करें'
-          : 'Set your new password'
       case 'forgot-password':
         return language === 'hindi' 
           ? 'पासवर्ड रीसेट करने के लिए अपना ईमेल दर्ज करें'
@@ -269,7 +241,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     switch (currentStep) {
       case 'signup-verify-otp':
         return <Mail className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-      case 'signup-set-password':
       case 'forgot-password':
         return <Key className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
       default:
@@ -535,86 +506,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
             </form>
           )}
 
-          {/* Set Password Form */}
-          {currentStep === 'signup-set-password' && (
-            <form className="space-y-4 sm:space-y-6" onSubmit={handleSetPassword}>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Key className="w-8 h-8 text-green-600" />
-                </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  {language === 'hindi' 
-                    ? 'अपना खाता सुरक्षित करने के लिए एक मजबूत पासवर्ड सेट करें'
-                    : 'Set a strong password to secure your account'}
-                </p>
-              </div>
-
-              {/* Password Requirements */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">
-                  {language === 'hindi' ? 'पासवर्ड आवश्यकताएं:' : 'Password Requirements:'}
-                </h4>
-                <ul className="text-xs text-blue-800 space-y-1">
-                  <li>• {language === 'hindi' ? 'कम से कम 6 अक्षर लंबा' : 'At least 6 characters long'}</li>
-                  <li>• {language === 'hindi' ? 'कम से कम एक बड़ा अक्षर (A-Z)' : 'At least one uppercase letter (A-Z)'}</li>
-                  <li>• {language === 'hindi' ? 'कम से कम एक संख्या (0-9)' : 'At least one number (0-9)'}</li>
-                  <li>• {language === 'hindi' ? 'कम से कम एक विशेष चिह्न (!@#$%^&*)' : 'At least one special character (!@#$%^&*)'}</li>
-                </ul>
-              </div>
-
-              <div>
-                <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
-                  {language === 'hindi' ? 'नया पासवर्ड' : 'New Password'}
-                </label>
-                <div className="mt-1 relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <input
-                    id="newPassword"
-                    name="newPassword"
-                    type="password"
-                    required
-                    value={formData.newPassword}
-                    onChange={handleInputChange}
-                    className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                    placeholder={language === 'hindi' ? 'मजबूत पासवर्ड दर्ज करें' : 'Enter a strong password'}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  {language === 'hindi' ? 'पासवर्ड की पुष्टि करें' : 'Confirm Password'}
-                </label>
-                <div className="mt-1 relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                    placeholder={language === 'hindi' ? 'पासवर्ड दोबारा दर्ज करें' : 'Re-enter password'}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {loading 
-                    ? (language === 'hindi' ? 'सेट कर रहे हैं...' : 'Setting...')
-                    : (language === 'hindi' ? 'पासवर्ड सेट करें' : 'Set Password')
-                  }
-                </button>
-              </div>
-            </form>
-          )}
-
           {/* Forgot Password Form */}
           {currentStep === 'forgot-password' && (
             <form className="space-y-4 sm:space-y-6" onSubmit={handleForgotPassword}>
@@ -679,10 +570,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
             {language === 'hindi' 
               ? currentStep === 'login' 
                 ? 'खाता बनाकर आप हमारी सेवा की शर्तों और गोपनीयता नीति से सहमत हैं।'
-                : 'आपका खाता सत्यापित है। अब आप RGA न्यास पोर्टल में लॉगिन कर सकते हैं।'
+                : 'OTP सत्यापन के बाद आप अपने खाते में लॉगिन कर सकेंगे।'
               : currentStep === 'login' 
                 ? 'By creating an account, you agree to our Terms of Service and Privacy Policy.'
-                : 'Your account is now verified. You can login to RGA Nyas Portal.'}
+                : 'After OTP verification, you can login to your account.'}
           </p>
         </div>
       </div>

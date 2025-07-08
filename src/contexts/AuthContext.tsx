@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, fullName: string) => Promise<{ user: User | null; session: Session | null }>
+  signUp: (email: string, fullName: string, password: string) => Promise<{ user: User | null; session: Session | null }>
   signOut: () => Promise<void>
   verifyOtp: (email: string, otp: string) => Promise<void>
   setPassword: (password: string) => Promise<void>
@@ -333,9 +334,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signUp = async (email: string, fullName: string) => {
+  const signUp = async (email: string, fullName: string, password: string) => {
     try {
-      console.log('🔧 signUp function called with:', { email, fullName })
+      console.log('🔧 signUp function called with:', { email, fullName, passwordLength: password.length })
       
       // Validate inputs
       if (!email || !email.includes('@')) {
@@ -346,11 +347,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('❌ Full name validation failed')
         throw new Error('Full name is required')
       }
+      if (!password || password.length < 6) {
+        console.log('❌ Password validation failed')
+        throw new Error('Password must be at least 6 characters long')
+      }
 
       console.log('📤 Calling supabase.auth.signUp...')
       const { data, error } = await supabase.auth.signUp({
         email,
-        password: 'temporary_password_' + Math.random().toString(36), // Temporary password
+        password: password,
         options: {
           data: {
             full_name: fullName,
@@ -431,7 +436,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `${window.location.origin}/auth/reset-password`
       })
       
       if (error) throw new Error(`Password reset failed: ${error.message}`)

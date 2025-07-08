@@ -6,7 +6,7 @@ import { BookOpen, Lock, Key, CheckCircle, AlertCircle, ArrowLeft, Globe } from 
 import toast from 'react-hot-toast'
 
 const ResetPasswordForm: React.FC = () => {
-  const { user, setPassword, signOut } = useAuth()
+  const { user, setPassword } = useAuth()
   const { language, setLanguage, t } = useLanguage()
   const navigate = useNavigate()
   
@@ -23,12 +23,37 @@ const ResetPasswordForm: React.FC = () => {
   }
 
   useEffect(() => {
-    // If no user session, the reset link is invalid or expired
-    if (!user) {
+    // Check for recovery session from URL hash
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+    const type = hashParams.get('type')
+    
+    console.log('Reset password page loaded with:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type })
+    
+    if (type !== 'recovery' || !accessToken) {
+      console.log('Invalid reset link - missing recovery type or access token')
       toast.error(language === 'hindi' 
         ? 'रीसेट लिंक अमान्य या समाप्त हो गया है'
         : 'Reset link is invalid or expired')
-      navigate('/')
+      setTimeout(() => navigate('/'), 2000)
+      return
+    }
+    
+    // If we have the tokens but no user session yet, wait a moment for Supabase to process
+    if (!user) {
+      console.log('Waiting for user session to be established...')
+      const timer = setTimeout(() => {
+        if (!user) {
+          console.log('No user session after waiting - link may be expired')
+          toast.error(language === 'hindi' 
+            ? 'रीसेट लिंक अमान्य या समाप्त हो गया है'
+            : 'Reset link is invalid or expired')
+          navigate('/')
+        }
+      }, 3000)
+      
+      return () => clearTimeout(timer)
     }
   }, [user, navigate, language])
 
