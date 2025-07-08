@@ -651,14 +651,14 @@ const CreateEditForms: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handleEditForm(form)}
-                  className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                   title="Edit Form"
                 >
                   <Edit className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => toggleFormStatus(form.id, form.is_active)}
-                  className={`p-2 rounded ${
+                  className={`p-2 rounded transition-colors ${
                     form.is_active 
                       ? 'text-yellow-600 hover:bg-yellow-50' 
                       : 'text-green-600 hover:bg-green-50'
@@ -669,7 +669,7 @@ const CreateEditForms: React.FC = () => {
                 </button>
                 <button
                   onClick={() => handleDeleteForm(form.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                  className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                   title="Delete Form"
                 >
                   <Trash2 className="w-4 h-4" />

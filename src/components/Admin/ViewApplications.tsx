@@ -260,7 +260,9 @@ const ViewApplications: React.FC = () => {
               <option key={form.id} value={form.id}>{form.title}</option>
             ))}
           </select>
-          <button className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+          <button 
+            onClick={() => window.open('/admin/export', '_blank')}
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <Download className="w-4 h-4" />
             <span>Export</span>
           </button>
@@ -333,7 +335,7 @@ const ViewApplications: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => handleViewApplication(application)}
-                      className="flex items-center space-x-1 text-blue-600 hover:text-blue-900"
+                      className="flex items-center space-x-1 text-blue-600 hover:text-blue-900 transition-colors"
                     >
                       <Eye className="w-4 h-4" />
                       <span>View</span>

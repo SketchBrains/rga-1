@@ -16,7 +16,11 @@ import {
   Activity
 } from 'lucide-react'
 
-const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+  onNavigate: (tab: string) => void
+}
+
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     totalApplications: 0,
     pendingApplications: 0,
@@ -305,7 +309,9 @@ const AdminDashboard: React.FC = () => {
             Quick Actions
           </h3>
           <div className="space-y-3 sm:space-y-4">
-            <button className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all group">
+            <button 
+              onClick={() => onNavigate('forms')}
+              className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all group">
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -318,7 +324,9 @@ const AdminDashboard: React.FC = () => {
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <button className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg hover:from-green-100 hover:to-green-200 transition-all group">
+            <button 
+              onClick={() => onNavigate('applications')}
+              className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg hover:from-green-100 hover:to-green-200 transition-all group">
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-600 rounded-lg flex items-center justify-center">
                   <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -331,7 +339,9 @@ const AdminDashboard: React.FC = () => {
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <button className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-purple-200 transition-all group">
+            <button 
+              onClick={() => onNavigate('export')}
+              className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-purple-200 transition-all group">
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-600 rounded-lg flex items-center justify-center">
                   <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -344,7 +354,9 @@ const AdminDashboard: React.FC = () => {
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <button className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg hover:from-orange-100 hover:to-orange-200 transition-all group">
+            <button 
+              onClick={() => onNavigate('marquee')}
+              className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg hover:from-orange-100 hover:to-orange-200 transition-all group">
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-orange-600 rounded-lg flex items-center justify-center">
                   <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -402,7 +414,9 @@ const AdminDashboard: React.FC = () => {
           </div>
           {recentApplications.length > 0 && (
             <div className="mt-4 text-center">
-              <button className="text-blue-600 hover:text-blue-800 font-medium text-xs sm:text-sm">
+              <button 
+                onClick={() => onNavigate('applications')}
+                className="text-blue-600 hover:text-blue-800 font-medium text-xs sm:text-sm">
                 View All Applications →
               </button>
             </div>

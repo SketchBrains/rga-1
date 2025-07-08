@@ -72,7 +72,7 @@ const AppContent: React.FC = () => {
       console.log('👨‍💼 Rendering admin dashboard, activeTab:', activeTab)
       switch (activeTab) {
         case 'dashboard':
-          return <AdminDashboard />
+          return <AdminDashboard onNavigate={setActiveTab} />
         case 'forms':
           return <CreateEditForms />
         case 'applications':
@@ -88,7 +88,7 @@ const AppContent: React.FC = () => {
       console.log('👨‍🎓 Rendering student dashboard, activeTab:', activeTab)
       switch (activeTab) {
         case 'dashboard':
-          return <StudentDashboard />
+          return <StudentDashboard onNavigate={setActiveTab} />
         case 'applications':
           return <StudentApplications />
         case 'documents':

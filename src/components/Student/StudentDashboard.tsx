@@ -18,9 +18,14 @@ import {
   ArrowRight,
   Plus
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
-const StudentDashboard: React.FC = () => {
+interface StudentDashboardProps {
+  onNavigate: (tab: string) => void
+}
+
+const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
   const { user, profile } = useAuth()
   const { 
     scholarshipForms, 
@@ -131,6 +136,23 @@ const StudentDashboard: React.FC = () => {
   const appliedFormIds = applications.map(app => app.form_id)
   const availableForms = scholarshipForms.filter(form => !appliedFormIds.includes(form.id))
 
+  const handleApplyToForm = (formId: string) => {
+    // Navigate to applications tab where they can apply
+    onNavigate('applications')
+  }
+
+  const handleViewAllApplications = () => {
+    onNavigate('applications')
+  }
+
+  const handleViewDocuments = () => {
+    onNavigate('documents')
+  }
+
+  const handleViewHistory = () => {
+    onNavigate('history')
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Welcome Section */}
@@ -204,7 +226,9 @@ const StudentDashboard: React.FC = () => {
             </p>
           </div>
           {availableForms.length > 3 && (
-            <button className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base mt-2 sm:mt-0">
+            <button 
+              onClick={() => onNavigate('applications')}
+              className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base mt-2 sm:mt-0">
               <span>{language === 'hindi' ? 'सभी देखें' : 'View All'}</span>
               <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
@@ -266,7 +290,9 @@ const StudentDashboard: React.FC = () => {
                       <span>{new Date(form.created_at).toLocaleDateString()}</span>
                     </div>
                     
-                    <button className="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center justify-center space-x-2 w-full sm:w-auto bg-gradient-to-r from-blue-600 to-emerald-600 text-white hover:from-blue-700 hover:to-emerald-700 shadow-md hover:shadow-lg">
+                    <button 
+                      onClick={() => handleApplyToForm(form.id)}
+                      className="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center justify-center space-x-2 w-full sm:w-auto bg-gradient-to-r from-blue-600 to-emerald-600 text-white hover:from-blue-700 hover:to-emerald-700 shadow-md hover:shadow-lg">
                       <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>{language === 'hindi' ? 'आवेदन करें' : 'Apply Now'}</span>
                     </button>
@@ -292,7 +318,9 @@ const StudentDashboard: React.FC = () => {
                   : 'Status of your recent applications'}
               </p>
             </div>
-            <button className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base mt-2 sm:mt-0">
+            <button 
+              onClick={handleViewAllApplications}
+              className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base mt-2 sm:mt-0">
               <span>{language === 'hindi' ? 'सभी देखें' : 'View All'}</span>
               <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
@@ -338,7 +366,9 @@ const StudentDashboard: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+        <button 
+          onClick={handleViewAllApplications}
+          className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow text-left">
           <div className="flex items-center space-x-3 mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center">
               <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
@@ -352,12 +382,14 @@ const StudentDashboard: React.FC = () => {
               ? 'अपने आवेदनों की स्थिति देखें'
               : 'View status of your applications'}
           </p>
-          <button className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium">
+          <span className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium">
             {language === 'hindi' ? 'देखें →' : 'View →'}
-          </button>
-        </div>
+          </span>
+        </button>
 
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+        <button 
+          onClick={handleViewDocuments}
+          className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow text-left">
           <div className="flex items-center space-x-3 mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-100 rounded-lg flex items-center justify-center">
               <Award className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
@@ -371,12 +403,14 @@ const StudentDashboard: React.FC = () => {
               ? 'आवश्यक दस्तावेज़ अपलोड करें'
               : 'Upload required documents'}
           </p>
-          <button className="text-green-600 hover:text-green-800 text-xs sm:text-sm font-medium">
+          <span className="text-green-600 hover:text-green-800 text-xs sm:text-sm font-medium">
             {language === 'hindi' ? 'अपलोड करें →' : 'Upload →'}
-          </button>
-        </div>
+          </span>
+        </button>
 
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+        <button 
+          onClick={handleViewHistory}
+          className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow text-left">
           <div className="flex items-center space-x-3 mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-100 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
@@ -390,12 +424,14 @@ const StudentDashboard: React.FC = () => {
               ? 'पिछले आवेदनों का रिकॉर्ड देखें'
               : 'View record of past applications'}
           </p>
-          <button className="text-purple-600 hover:text-purple-800 text-xs sm:text-sm font-medium">
+          <span className="text-purple-600 hover:text-purple-800 text-xs sm:text-sm font-medium">
             {language === 'hindi' ? 'इतिहास →' : 'History →'}
-          </button>
-        </div>
+          </span>
+        </button>
 
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+        <button 
+          onClick={() => window.open('mailto:support@rga.org', '_blank')}
+          className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow text-left">
           <div className="flex items-center space-x-3 mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <Users className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
@@ -409,10 +445,10 @@ const StudentDashboard: React.FC = () => {
               ? 'सहायता और मार्गदर्शन प्राप्त करें'
               : 'Get help and guidance'}
           </p>
-          <button className="text-orange-600 hover:text-orange-800 text-xs sm:text-sm font-medium">
+          <span className="text-orange-600 hover:text-orange-800 text-xs sm:text-sm font-medium">
             {language === 'hindi' ? 'सहायता →' : 'Help →'}
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
 
       {/* Success Message for Approved Applications */}

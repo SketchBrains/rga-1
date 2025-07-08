@@ -329,14 +329,14 @@ const MarqueeEditor: React.FC = () => {
                 <div className="flex items-center space-x-2 ml-4">
                   <button
                     onClick={() => handleEdit(announcement)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                     title="Edit"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => toggleStatus(announcement.id, announcement.is_active)}
-                    className={`p-2 rounded ${
+                    className={`p-2 rounded transition-colors ${
                       announcement.is_active 
                         ? 'text-yellow-600 hover:bg-yellow-50' 
                         : 'text-green-600 hover:bg-green-50'
@@ -347,7 +347,7 @@ const MarqueeEditor: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handleDelete(announcement.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />

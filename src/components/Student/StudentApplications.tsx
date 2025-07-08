@@ -288,12 +288,13 @@ const StudentApplications: React.FC = () => {
                       <span>View Details</span>
                     </button>
 
-                    {application.status === 'pending' && (
-                      <button className="flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-xs sm:text-sm w-full sm:w-auto justify-center">
-                        <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span>Edit</span>
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => window.open(`mailto:support@rga.org?subject=Application ${application.id}&body=I need help with my application.`, '_blank')}
+                      className="flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-xs sm:text-sm w-full sm:w-auto justify-center"
+                    >
+                      <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>Contact Support</span>
+                    </button>
                   </div>
                 </div>
               )
