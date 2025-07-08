@@ -60,6 +60,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('🚀 handleRequestOtp called with:', { email: formData.email, fullName: formData.fullName })
     setLoading(true)
 
     if (!formData.fullName.trim()) {
@@ -69,16 +70,22 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     }
 
     try {
+      console.log('📧 Calling signUp function...')
       const result = await signUp(formData.email, formData.fullName)
+      console.log('✅ signUp result:', result)
+      
       if (result.user && !result.session) {
         // User needs to verify email with OTP
+        console.log('📨 OTP should be sent, moving to verification step')
         setCurrentStep('signup-verify-otp')
         toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
       } else {
         // User is automatically signed in
+        console.log('🔐 User automatically signed in')
         toast.success(language === 'hindi' ? 'खाता सफलतापूर्वक बनाया गया!' : 'Account created successfully!')
       }
     } catch (error: any) {
+      console.error('❌ signUp error:', error)
       toast.error(error.message || (language === 'hindi' ? 'साइन अप विफल' : 'Signup failed'))
     } finally {
       setLoading(false)
@@ -200,10 +207,14 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
   const handleResendOtp = async () => {
     try {
+      console.log('🔄 handleResendOtp called with email:', formData.email)
       setLoading(true)
+      console.log('📧 Calling resendOtp function...')
       await resendOtp(formData.email)
+      console.log('✅ resendOtp completed successfully')
       toast.success('OTP resent to your email!')
     } catch (error: any) {
+      console.error('❌ resendOtp error:', error)
       toast.error(error.message || 'Failed to resend OTP')
     } finally {
       setLoading(false)

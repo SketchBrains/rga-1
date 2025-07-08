@@ -335,14 +335,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, fullName: string) => {
     try {
+      console.log('🔧 signUp function called with:', { email, fullName })
+      
       // Validate inputs
       if (!email || !email.includes('@')) {
+        console.log('❌ Invalid email validation failed')
         throw new Error('Invalid email address')
       }
       if (!fullName || fullName.trim() === '') {
+        console.log('❌ Full name validation failed')
         throw new Error('Full name is required')
       }
 
+      console.log('📤 Calling supabase.auth.signUp...')
       const { data, error } = await supabase.auth.signUp({
         email,
         password: 'temporary_password_' + Math.random().toString(36), // Temporary password
@@ -354,8 +359,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       })
       
+      console.log('📥 supabase.auth.signUp response:', { data, error })
+      
       if (error) throw new Error(error.message || 'Signup failed')
 
+      console.log('✅ signUp function returning data:', data)
       return data
     } catch (error) {
       console.error('Signup error:', error)
@@ -401,12 +409,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendOtp = async (email: string) => {
     try {
+      console.log('🔧 resendOtp function called with email:', email)
+      console.log('📤 Calling supabase.auth.resend...')
+      
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email
       })
       
+      console.log('📥 supabase.auth.resend response:', { error })
+      
       if (error) throw new Error(`Resend OTP failed: ${error.message}`)
+      
+      console.log('✅ resendOtp function completed successfully')
     } catch (error) {
       console.error('Resend OTP error:', error)
       throw error
