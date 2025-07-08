@@ -16,6 +16,7 @@ import {
   Search,
   Filter
 } from 'lucide-react'
+import { s3Client, wasabiBucketName, PutObjectCommand, DeleteObjectCommand, generateFilePath, getWasabiPublicUrl, extractKeyFromUrl } from '../../lib/wasabi'
 import toast from 'react-hot-toast'
 
 const StudentDocuments: React.FC = () => {
@@ -97,22 +98,24 @@ const StudentDocuments: React.FC = () => {
     setUploadingFiles(prev => [...prev, file.name])
 
     try {
-      // Upload file to Supabase Storage
+      // Upload file to Wasabi
       const fileExt = file.name.split('.').pop()
-      const fileName = `${user?.id}/${Date.now()}.${fileExt}`
+      const fileKey = `${generateFilePath(user?.id || '', 'user-uploads')}.${fileExt}`
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, file)
+      const uploadCommand = new PutObjectCommand({
+        Bucket: wasabiBucketName,
+        Key: fileKey,
+        Body: file,
+        ContentType: file.type,
+        ACL: 'public-read', // Make the file publicly accessible
+      })
 
-      if (uploadError) throw uploadError
+      await s3Client.send(uploadCommand)
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName)
+      // Get public URL for Wasabi
+      const publicUrl = getWasabiPublicUrl(fileKey)
 
-      // Save document record
+      // Save document record to Supabase
       const { error: insertError } = await supabase
         .from('documents')
         .insert({
@@ -130,17 +133,28 @@ const StudentDocuments: React.FC = () => {
       toast.success('File uploaded successfully')
       fetchDocuments()
     } catch (error) {
-      console.error('Error uploading file:', error)
+      console.error('Error uploading file to Wasabi:', error)
       toast.error('Failed to upload file')
     } finally {
       setUploadingFiles(prev => prev.filter(name => name !== file.name))
     }
   }
 
-  const handleDeleteDocument = async (documentId: string, fileName: string) => {
+  const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return
 
     try {
+      // Extract the key from the Wasabi URL
+      const key = extractKeyFromUrl(fileUrl)
+
+      // Delete file from Wasabi
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: wasabiBucketName,
+        Key: key,
+      })
+      await s3Client.send(deleteCommand)
+
+      // Delete document record from Supabase
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -291,7 +305,7 @@ const StudentDocuments: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleDeleteDocument(document.id, document.file_name)}
+                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url)}
                   className="p-1 text-red-500 hover:text-red-700"
                   title="Delete document"
                 >

@@ -20,6 +20,7 @@ import {
   List,
   AlignLeft
 } from 'lucide-react'
+import { s3Client, wasabiBucketName, PutObjectCommand, generateFilePath, getWasabiPublicUrl } from '../../lib/wasabi'
 import toast from 'react-hot-toast'
 
 interface ApplicationFormProps {
@@ -112,20 +113,22 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         return
       }
 
-      // Upload file to Supabase Storage
+      // Upload file to Wasabi
       const fileExt = file.name.split('.').pop()
-      const fileName = `${user?.id}/${fieldId}/${Date.now()}.${fileExt}`
+      const fileKey = `${generateFilePath(user?.id || '', 'applications', fieldId)}.${fileExt}`
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, file)
+      const uploadCommand = new PutObjectCommand({
+        Bucket: wasabiBucketName,
+        Key: fileKey,
+        Body: file,
+        ContentType: file.type,
+        ACL: 'public-read', // Make the file publicly accessible
+      })
 
-      if (uploadError) throw uploadError
+      await s3Client.send(uploadCommand)
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName)
+      // Get public URL for Wasabi
+      const publicUrl = getWasabiPublicUrl(fileKey)
 
       setUploadedFiles(prev => ({
         ...prev,
@@ -135,7 +138,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       handleInputChange(fieldId, file)
       toast.success('File uploaded successfully')
     } catch (error) {
-      console.error('Error uploading file:', error)
+      console.error('Error uploading file to Wasabi:', error)
       toast.error('Failed to upload file')
     }
   }
