@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
@@ -7,6 +7,7 @@ import { DataProvider } from './contexts/DataContext'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
 import ResetPasswordForm from './components/Auth/ResetPasswordForm'
+import ConfirmReset from './components/Auth/ConfirmReset' // Add this import
 import Header from './components/Layout/Header'
 import Sidebar from './components/Layout/Sidebar'
 import Marquee from './components/Layout/Marquee'
@@ -21,12 +22,21 @@ import MarqueeEditor from './components/Admin/MarqueeEditor'
 import ExportData from './components/Admin/ExportData'
 
 const AppContent: React.FC = () => {
-  const { user, loading } = useAuth()
+  const { user, loading, signOut } = useAuth()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showAuth, setShowAuth] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const location = useLocation()
 
-  console.log('🔍 AppContent render - user:', user?.id, 'role:', user?.role, 'loading:', loading)
+  console.log('🔍 AppContent render - user:', user?.id, 'role:', user?.role, 'loading:', loading, 'path:', location.pathname)
+
+  // Sign out if accessing reset-password or confirm-reset route with an active session
+  useEffect(() => {
+    if ((location.pathname === '/auth/reset-password' || location.pathname === '/auth/confirm-reset') && user) {
+      console.log('🔐 Active session detected on reset-related route, signing out...')
+      signOut().catch(err => console.error('❌ Error signing out:', err))
+    }
+  }, [location.pathname, user, signOut])
 
   // Show loading screen while authentication is being determined
   if (loading) {
@@ -43,22 +53,22 @@ const AppContent: React.FC = () => {
   }
 
   // Show landing page if no user and not showing auth
-  if (!user && !showAuth) {
+  if (!user && !showAuth && location.pathname !== '/auth/reset-password' && location.pathname !== '/auth/confirm-reset') {
     console.log('🏠 Showing landing page')
     return <LandingPage onShowAuth={() => setShowAuth(true)} />
   }
 
   // Show auth form if no user and showing auth
-  if (!user && showAuth) {
+  if (!user && showAuth && location.pathname !== '/auth/reset-password' && location.pathname !== '/auth/confirm-reset') {
     console.log('🔐 Showing auth form')
     return <AuthForm onBackToLanding={() => setShowAuth(false)} />
   }
 
   // User is authenticated, show appropriate dashboard
-  console.log('🎉 User is authenticated, role:', user.role, 'showing dashboard')
+  console.log('🎉 User is authenticated, role:', user?.role, 'showing dashboard')
   
   const renderContent = () => {
-    if (user.role === 'admin') {
+    if (user && user.role === 'admin') {
       console.log('👨‍💼 Rendering admin dashboard, activeTab:', activeTab)
       switch (activeTab) {
         case 'dashboard':
@@ -74,7 +84,7 @@ const AppContent: React.FC = () => {
         default:
           return <AdminDashboard />
       }
-    } else {
+    } else if (user) {
       console.log('👨‍🎓 Rendering student dashboard, activeTab:', activeTab)
       switch (activeTab) {
         case 'dashboard':
@@ -88,6 +98,8 @@ const AppContent: React.FC = () => {
         default:
           return <StudentDashboard />
       }
+    } else {
+      return null
     }
   }
 
@@ -121,6 +133,7 @@ function App() {
         <LanguageProvider>
           <Routes>
             <Route path="/auth/reset-password" element={<ResetPasswordForm />} />
+            <Route path="/auth/confirm-reset" element={<ConfirmReset />} /> {/* Add this line */}
             <Route path="/*" element={<AppContent />} />
           </Routes>
           <Toaster

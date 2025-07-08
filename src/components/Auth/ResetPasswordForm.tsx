@@ -1,67 +1,85 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { useNavigate } from 'react-router-dom'
-import { BookOpen, Lock, Key, CheckCircle, AlertCircle, ArrowLeft, Globe } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Lock, Key, CheckCircle, ArrowLeft, Globe, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const ResetPasswordForm: React.FC = () => {
-  const { user, setPassword } = useAuth()
-  const { language, setLanguage, t } = useLanguage()
+  const { verifyOtp, setPassword, signOut } = useAuth()
+  const { language, setLanguage } = useLanguage()
   const navigate = useNavigate()
-  
+  const location = useLocation()
+
   const [formData, setFormData] = useState({
+    email: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    token: ''
   })
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [passwordMetrics, setPasswordMetrics] = useState({
+    minLength: false,
+    uppercase: false,
+    number: false,
+    specialChar: false,
+  })
+
+  useEffect(() => {
+    // Sign out any existing session to prevent dashboard redirect
+    const ensureNoSession = async () => {
+      try {
+        console.log('🔐 Ensuring no active session for reset password')
+        await signOut()
+      } catch (err) {
+        console.error('❌ Error signing out:', err)
+      }
+    }
+
+    // Extract query parameters from URL
+    const searchParams = new URLSearchParams(location.search)
+    const token = searchParams.get('token')
+    const type = searchParams.get('type')
+    const email = searchParams.get('email') || ''
+
+    console.log('🔍 Reset password page loaded with:', { token: !!token, type, email })
+
+    if (type !== 'recovery' || !token) {
+      console.log('❌ Invalid reset link - missing recovery type or token')
+      setError(language === 'hindi' 
+        ? 'रीसेट लिंक अमान्य या समाप्त हो गया है'
+        : 'Reset link is invalid or expired')
+      setTimeout(() => navigate('/'), 3000)
+      return
+    }
+
+    ensureNoSession().then(() => {
+      setFormData(prev => ({ ...prev, token, email }))
+    })
+  }, [navigate, language, location, signOut])
 
   const handleLanguageToggle = () => {
     const newLanguage = language === 'english' ? 'hindi' : 'english'
     setLanguage(newLanguage)
   }
 
-  useEffect(() => {
-    // Check for recovery session from URL hash
-    const hashParams = new URLSearchParams(window.location.hash.substring(1))
-    const accessToken = hashParams.get('access_token')
-    const refreshToken = hashParams.get('refresh_token')
-    const type = hashParams.get('type')
-    
-    console.log('Reset password page loaded with:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type })
-    
-    if (type !== 'recovery' || !accessToken) {
-      console.log('Invalid reset link - missing recovery type or access token')
-      toast.error(language === 'hindi' 
-        ? 'रीसेट लिंक अमान्य या समाप्त हो गया है'
-        : 'Reset link is invalid or expired')
-      setTimeout(() => navigate('/'), 2000)
-      return
-    }
-    
-    // If we have the tokens but no user session yet, wait a moment for Supabase to process
-    if (!user) {
-      console.log('Waiting for user session to be established...')
-      const timer = setTimeout(() => {
-        if (!user) {
-          console.log('No user session after waiting - link may be expired')
-          toast.error(language === 'hindi' 
-            ? 'रीसेट लिंक अमान्य या समाप्त हो गया है'
-            : 'Reset link is invalid or expired')
-          navigate('/')
-        }
-      }, 3000)
-      
-      return () => clearTimeout(timer)
-    }
-  }, [user, navigate, language])
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     })
+
+    if (name === 'newPassword') {
+      setPasswordMetrics({
+        minLength: value.length >= 6,
+        uppercase: /[A-Z]/.test(value),
+        number: /[0-9]/.test(value),
+        specialChar: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+      })
+    }
   }
 
   const validatePassword = (password: string): string[] => {
@@ -97,8 +115,18 @@ const ResetPasswordForm: React.FC = () => {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     try {
+      // Validate email
+      if (!formData.email) {
+        toast.error(language === 'hindi' 
+          ? 'कृपया अपना ईमेल दर्ज करें'
+          : 'Please enter your email')
+        setLoading(false)
+        return
+      }
+
       // Validate password
       const passwordErrors = validatePassword(formData.newPassword)
       if (passwordErrors.length > 0) {
@@ -107,14 +135,18 @@ const ResetPasswordForm: React.FC = () => {
         return
       }
 
-      // Check if passwords match
       if (formData.newPassword !== formData.confirmPassword) {
         toast.error(language === 'hindi' ? 'पासवर्ड मेल नहीं खाते' : 'Passwords do not match')
         setLoading(false)
         return
       }
 
+      // Verify token
+      console.log('🔐 Verifying recovery token for:', formData.email)
+      await verifyOtp(formData.email, formData.token, 'recovery')
+      
       // Update password
+      console.log('🔑 Updating password')
       await setPassword(formData.newPassword)
       
       setSuccess(true)
@@ -128,10 +160,12 @@ const ResetPasswordForm: React.FC = () => {
       }, 3000)
 
     } catch (error: any) {
-      console.error('Password reset error:', error)
-      toast.error(error.message || (language === 'hindi' 
-        ? 'पासवर्ड रीसेट करने में त्रुटि'
-        : 'Error resetting password'))
+      console.error('❌ Password reset error:', error.message, { code: error.code, status: error.status })
+      const errorMessage = error.message.includes('Invalid token') || error.message.includes('expired')
+        ? (language === 'hindi' ? 'रीसेट लिंक अमान्य या समाप्त हो गया है' : 'Reset link is invalid or expired')
+        : (language === 'hindi' ? `त्रुटि: ${error.message}` : `Error: ${error.message}`)
+      setError(errorMessage)
+      setTimeout(() => navigate('/'), 3000)
     } finally {
       setLoading(false)
     }
@@ -141,8 +175,47 @@ const ResetPasswordForm: React.FC = () => {
     navigate('/')
   }
 
-  if (!user) {
-    return null // Will redirect in useEffect
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-6 sm:space-y-8">
+          <div className="text-center">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-red-600 to-orange-600 rounded-full flex items-center justify-center">
+                <Key className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">
+              {language === 'hindi' ? 'त्रुटि' : 'Error'}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {error}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {language === 'hindi' 
+                ? 'आप लॉगिन पेज पर रीडायरेक्ट हो रहे हैं...'
+                : 'Redirecting to login page...'}
+            </p>
+          </div>
+
+          <div className="bg-white p-8 rounded-xl shadow-lg">
+            <div className="text-center">
+              <p className="text-gray-600 mb-4">
+                {language === 'hindi' 
+                  ? 'कृपया पासवर्ड रीसेट दोबारा शुरू करें।'
+                  : 'Please try resetting your password again.'}
+              </p>
+              <button
+                onClick={handleBackToLogin}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
+              >
+                {language === 'hindi' ? 'लॉगिन पेज पर जाएं' : 'Go to Login'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (success) {
@@ -193,7 +266,6 @@ const ResetPasswordForm: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6 sm:space-y-8">
-        {/* Header with back button */}
         <div className="flex items-center justify-between">
           <button
             onClick={handleBackToLogin}
@@ -238,17 +310,23 @@ const ResetPasswordForm: React.FC = () => {
 
         <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
           <form className="space-y-4 sm:space-y-6" onSubmit={handleResetPassword}>
-            {/* Password Requirements */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">
-                {language === 'hindi' ? 'पासवर्ड आवश्यकताएं:' : 'Password Requirements:'}
-              </h4>
-              <ul className="text-xs text-blue-800 space-y-1">
-                <li>• {language === 'hindi' ? 'कम से कम 6 अक्षर लंबा' : 'At least 6 characters long'}</li>
-                <li>• {language === 'hindi' ? 'कम से कम एक बड़ा अक्षर (A-Z)' : 'At least one uppercase letter (A-Z)'}</li>
-                <li>• {language === 'hindi' ? 'कम से कम एक संख्या (0-9)' : 'At least one number (0-9)'}</li>
-                <li>• {language === 'hindi' ? 'कम से कम एक विशेष चिह्न (!@#$%^&*)' : 'At least one special character (!@#$%^&*)'}</li>
-              </ul>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                {language === 'hindi' ? 'ईमेल पता' : 'Email Address'}
+              </label>
+              <div className="mt-1 relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                  placeholder={language === 'hindi' ? 'आपका ईमेल पता' : 'Your email address'}
+                />
+              </div>
             </div>
 
             <div>
@@ -268,6 +346,24 @@ const ResetPasswordForm: React.FC = () => {
                   placeholder={language === 'hindi' ? 'मजबूत पासवर्ड दर्ज करें' : 'Enter a strong password'}
                 />
               </div>
+              <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                <li className="flex items-center">
+                  <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.minLength ? 'text-green-500' : 'text-gray-400'}`} />
+                  {language === 'hindi' ? 'कम से कम 6 अक्षर' : 'At least 6 characters'}
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.uppercase ? 'text-green-500' : 'text-gray-400'}`} />
+                  {language === 'hindi' ? 'एक बड़ा अक्षर' : 'One uppercase letter'}
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.number ? 'text-green-500' : 'text-gray-400'}`} />
+                  {language === 'hindi' ? 'एक संख्या' : 'One number'}
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.specialChar ? 'text-green-500' : 'text-gray-400'}`} />
+                  {language === 'hindi' ? 'एक विशेष चिह्न (!@#$%^&* आदि)' : 'One special character (!@#$%^&* etc.)'}
+                </li>
+              </ul>
             </div>
 
             <div>
@@ -292,7 +388,7 @@ const ResetPasswordForm: React.FC = () => {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !!error}
                 className="w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {loading 

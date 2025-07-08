@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { BookOpen, Mail, Lock, User, ArrowLeft, Globe, Shield, Key, AlertCircle } from 'lucide-react'
+import { BookOpen, Mail, Lock, User, ArrowLeft, Globe, Shield, Key, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface AuthFormProps {
@@ -32,16 +32,35 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
   } = useAuth()
   const { language, setLanguage, t } = useLanguage()
 
+  // State for password metrics
+  const [passwordMetrics, setPasswordMetrics] = useState({
+    minLength: false,
+    uppercase: false,
+    number: false,
+    specialChar: false,
+  })
+
   const handleLanguageToggle = () => {
     const newLanguage = language === 'english' ? 'hindi' : 'english'
     setLanguage(newLanguage)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     })
+
+    // Update password metrics if signupPassword changes
+    if (name === 'signupPassword') {
+      setPasswordMetrics({
+        minLength: value.length >= 6,
+        uppercase: /[A-Z]/.test(value),
+        number: /[0-9]/.test(value),
+        specialChar: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+      })
+    }
   }
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,7 +79,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('🚀 handleRequestOtp called with:', { email: formData.email, fullName: formData.fullName })
+    console.log('🚀 handleRequestOtp called with:', { email: formData.email, fullName: formData.fullName, signupPassword: formData.signupPassword })
     setLoading(true)
 
     if (!formData.fullName.trim()) {
@@ -82,18 +101,18 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       setLoading(false)
       return
     }
+
     try {
       console.log('📧 Calling signUp function...')
+      // Pass email, fullName, and password
       const result = await signUp(formData.email, formData.fullName, formData.signupPassword)
       console.log('✅ signUp result:', result)
       
       if (result.user && !result.session) {
-        // User needs to verify email with OTP
         console.log('📨 OTP should be sent, moving to verification step')
         setCurrentStep('signup-verify-otp')
         toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
       } else {
-        // User is automatically signed in
         console.log('🔐 User automatically signed in')
         toast.success(language === 'hindi' ? 'खाता सफलतापूर्वक बनाया गया!' : 'Account created successfully!')
       }
@@ -110,16 +129,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     setLoading(true)
 
     try {
-      await verifyOtp(formData.email, formData.otp)
-      
-      // Sign out the user immediately after OTP verification
-      // This prevents automatic login and forces password setting
-      await signOut()
+      await verifyOtp(formData.email, formData.otp, 'signup')
+      // await signOut()
       toast.success(language === 'hindi' 
         ? 'खाता सफलतापूर्वक बनाया गया! आप अब लॉगिन कर सकते हैं।'
         : 'Account created successfully! You can now login.')
       
-      // Clear form and go back to login
       setFormData({
         email: formData.email,
         password: '',
@@ -222,8 +237,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
           : 'Sign in to your account'
       case 'signup-request-otp':
         return language === 'hindi' 
-          ? 'नया खाता बनाने के लिए अपना नाम और ईमेल दर्ज करें'
-          : 'Enter your name and email to create a new account'
+          ? 'नया खाता बनाने के लिए अपना नाम, ईमेल और पासवर्ड दर्ज करें'
+          : 'Enter your name, email, and password to create a new account'
       case 'signup-verify-otp':
         return language === 'hindi' 
           ? 'आपके ईमेल पर भेजा गया OTP दर्ज करें'
@@ -257,8 +272,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
             onClick={() => {
               if (currentStep === 'signup-verify-otp') {
                 setCurrentStep('signup-request-otp')
-              } else if (currentStep === 'signup-set-password') {
-                setCurrentStep('signup-verify-otp')
               } else if (currentStep === 'signup-request-otp') {
                 setCurrentStep('login')
               } else if (currentStep === 'forgot-password') {
@@ -421,6 +434,63 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                   />
                 </div>
               </div>
+              
+              <div>
+                <label htmlFor="signupPassword" className="block text-sm font-medium text-gray-700">
+                  {language === 'hindi' ? 'पासवर्ड' : 'Password'}
+                </label>
+                <div className="mt-1 relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <input
+                    id="signupPassword"
+                    name="signupPassword"
+                    type="password"
+                    required
+                    value={formData.signupPassword}
+                    onChange={handleInputChange}
+                    className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                    placeholder={language === 'hindi' ? 'पासवर्ड दर्ज करें' : 'Enter password'}
+                  />
+                </div>
+                {/* Password Metrics */}
+                <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                  <li className="flex items-center">
+                    <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.minLength ? 'text-green-500' : 'text-gray-400'}`} />
+                    {language === 'hindi' ? 'कम से कम 6 अक्षर' : 'At least 6 characters'}
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.uppercase ? 'text-green-500' : 'text-gray-400'}`} />
+                    {language === 'hindi' ? 'एक बड़ा अक्षर' : 'One uppercase letter'}
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.number ? 'text-green-500' : 'text-gray-400'}`} />
+                    {language === 'hindi' ? 'एक संख्या' : 'One number'}
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className={`w-4 h-4 mr-2 ${passwordMetrics.specialChar ? 'text-green-500' : 'text-gray-400'}`} />
+                    {language === 'hindi' ? 'एक विशेष चिह्न (!@#$%^&* आदि)' : 'One special character (!@#$%^&* etc.)'}
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <label htmlFor="confirmSignupPassword" className="block text-sm font-medium text-gray-700">
+                  {language === 'hindi' ? 'पासवर्ड की पुष्टि करें' : 'Confirm Password'}
+                </label>
+                <div className="mt-1 relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <input
+                    id="confirmSignupPassword"
+                    name="confirmSignupPassword"
+                    type="password"
+                    required
+                    value={formData.confirmSignupPassword}
+                    onChange={handleInputChange}
+                    className="pl-10 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                    placeholder={language === 'hindi' ? 'पासवर्ड पुनः दर्ज करें' : 'Re-enter password'}
+                  />
+                </div>
+              </div>
 
               <div>
                 <button
@@ -516,7 +586,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
                 <p className="text-sm text-gray-600 mb-4">
                   {language === 'hindi' 
                     ? 'अपना ईमेल पता दर्ज करें और हम आपको पासवर्ड रीसेट लिंक भेजेंगे'
-                    : 'Enter your email address and we\'ll send you a password reset link'}
+                    : 'Enter your email address and we will send you a password reset link'}
                 </p>
               </div>
 
@@ -582,3 +652,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 }
 
 export default AuthForm
+
+// function signOut() {
+//   throw new Error('Function not implemented.')
+// }

@@ -8,10 +8,9 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, fullName: string) => Promise<{ user: User | null; session: Session | null }>
   signUp: (email: string, fullName: string, password: string) => Promise<{ user: User | null; session: Session | null }>
   signOut: () => Promise<void>
-  verifyOtp: (email: string, otp: string) => Promise<void>
+  verifyOtp: (email: string, otp: string, type: 'signup' | 'recovery') => Promise<void>
   setPassword: (password: string) => Promise<void>
   resendOtp: (email: string) => Promise<void>
   resetPassword: (email: string) => Promise<void>
@@ -123,7 +122,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🧹 Cleaning up duplicate profiles for user:', userId)
       
-      // Get all profiles for this user
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select('*')
@@ -142,7 +140,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log(`🔍 Found ${profiles.length} profiles, keeping the first one and removing duplicates`)
       
-      // Keep the first profile (oldest) and delete the rest
       const profilesToDelete = profiles.slice(1)
       
       for (const profile of profilesToDelete) {
@@ -169,13 +166,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 Fetching user data for:', authUser.id)
       
-      // Clean up any duplicate profiles first
       await cleanupDuplicateProfiles(authUser.id)
       
-      // Add a small delay to ensure database consistency
       await new Promise(resolve => setTimeout(resolve, 500))
       
-      // Fetch user and profile data with retries
       let userData = null
       let profileData = null
       let retries = 3
@@ -184,7 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log(`🔄 Fetching user data (attempt ${4 - retries})...`)
         
         try {
-          // Fetch user data
           const { data: userResult, error: userError } = await supabase
             .from('users')
             .select('*')
@@ -202,7 +195,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          // Fetch profile data - use maybeSingle() to handle cases where profile might not exist yet
           const { data: profileResult, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -238,7 +230,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!userData || !profileData) {
         console.error('❌ Failed to fetch user data after retries')
         
-        // If we have userData but no profileData, try to create the profile
         if (userData && !profileData) {
           console.log('🔧 Attempting to create missing profile...')
           const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
@@ -261,7 +252,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
-        // If we have profileData but no userData, try to create the user
         if (profileData && !userData) {
           console.log('🔧 Attempting to create missing user record...')
           
@@ -285,7 +275,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
-        // If we still don't have both, throw an error
         if (!userData || !profileData) {
           throw new Error('Unable to retrieve or create user account data. Please try refreshing the page.')
         }
@@ -326,7 +315,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       console.log('✅ Sign in successful')
-      // Don't set loading to false here - let the auth state change handler manage it
     } catch (error) {
       console.error('❌ Sign in error:', error)
       setLoading(false)
@@ -334,11 +322,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signUp = async (email: string, fullName: string, password: string) => {
+  const signUp = async (email: string, fullName: string, password: string): Promise<{ user: User | null; session: Session | null }> => {
     try {
       console.log('🔧 signUp function called with:', { email, fullName, passwordLength: password.length })
       
-      // Validate inputs
       if (!email || !email.includes('@')) {
         console.log('❌ Invalid email validation failed')
         throw new Error('Invalid email address')
@@ -368,46 +355,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw new Error(error.message || 'Signup failed')
 
-      console.log('✅ signUp function returning data:', data)
-      return data
+      let mappedUser: User | null = null
+      if (data.user) {
+        mappedUser = {
+          id: data.user.id,
+          email: data.user.email ?? '',
+          role: 'student',
+          language: 'english',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+      }
+
+      console.log('✅ signUp function returning mapped data:', { user: mappedUser, session: data.session })
+      return { user: mappedUser, session: data.session }
     } catch (error) {
       console.error('Signup error:', error)
       throw error
     }
   }
 
-  const verifyOtp = async (email: string, otp: string) => {
+  const verifyOtp = async (email: string, otp: string, type: 'signup' | 'recovery') => {
     try {
-      console.log('🔐 Verifying OTP for:', email)
+      console.log('🔐 Verifying OTP for:', email, 'Type:', type)
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'signup'
+        type
       })
       
-      if (error) throw new Error(`OTP verification failed: ${error.message}`)
+      if (error) {
+        console.error('❌ OTP verification error details:', { message: error.message, code: error.code, status: error.status })
+        throw new Error(`OTP verification failed: ${error.message}`)
+      }
       
-      console.log('✅ OTP verified successfully')
-      // After successful OTP verification, the user should be signed in
-      // The auth state change handler will fetch user data
+      console.log('✅ OTP verified successfully:', data)
     } catch (error) {
-      console.error('OTP verification error:', error)
+      console.error('❌ OTP verification error:', error)
       throw error
     }
   }
 
   const setPassword = async (password: string) => {
     try {
+      console.log('🔑 Attempting to set password')
       const { error } = await supabase.auth.updateUser({
-        password: password
+        password
       })
       
-      if (error) throw new Error(`Set password failed: ${error.message}`)
+      if (error) {
+        console.error('❌ Set password error details:', { message: error.message, code: error.code, status: error.status })
+        throw new Error(`Set password failed: ${error.message}`)
+      }
       
-      // Sign out after setting password to force user to login with new credentials
+      console.log('✅ Password set successfully')
       await supabase.auth.signOut()
+      console.log('✅ Signed out after password reset')
     } catch (error) {
-      console.error('Set password error:', error)
+      console.error('❌ Set password error:', error)
       throw error
     }
   }
@@ -435,13 +440,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     try {
+      console.log('🔧 resetPassword function called with email:', email)
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`
       })
       
-      if (error) throw new Error(`Password reset failed: ${error.message}`)
+      if (error) {
+        console.error('❌ Password reset error details:', { message: error.message, code: error.code, status: error.status })
+        throw new Error(`Password reset failed: ${error.message}`)
+      }
+      console.log('✅ Password reset email sent successfully')
     } catch (error) {
-      console.error('Password reset error:', error)
+      console.error('❌ Password reset error:', error)
       throw error
     }
   }
@@ -456,7 +466,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error signing out:', error)
     }
-    // Don't manually set states here - let the auth state change handler manage it
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
