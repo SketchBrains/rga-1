@@ -188,35 +188,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .from('users')
             .select('*')
             .eq('id', authUser.id)
-            .single() // Use single() instead of maybeSingle() since we know the user should exist
+            .maybeSingle()
 
           if (userError) {
             console.error('❌ Error fetching user:', userError)
           } else {
             userData = userResult
-            console.log('✅ User data fetched successfully')
+            if (userData) {
+              console.log('✅ User data fetched successfully')
+            } else {
+              console.log('⚠️ User data not found, will retry...')
+            }
           }
 
-          // Fetch profile data - use single() and handle the case where there might be duplicates
+          // Fetch profile data - use maybeSingle() to handle cases where profile might not exist yet
           const { data: profileResult, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', authUser.id)
-            .limit(1)
-            .single()
+            .maybeSingle()
 
           if (profileError) {
             console.error('❌ Error fetching profile:', profileError)
-            
-            // If we get a multiple rows error, try to clean up and retry
-            if (profileError.code === 'PGRST116') {
-              console.log('🧹 Multiple profiles detected, cleaning up...')
-              await cleanupDuplicateProfiles(authUser.id)
-              // Continue to retry
-            }
           } else {
             profileData = profileResult
-            console.log('✅ Profile data fetched successfully')
+            if (profileData) {
+              console.log('✅ Profile data fetched successfully')
+            } else {
+              console.log('⚠️ Profile data not found, will retry...')
+            }
           }
 
         } catch (fetchError) {
@@ -226,8 +226,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!userData || !profileData) {
           retries--
           if (retries > 0) {
-            console.log('⏳ Retrying in 1 second...')
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            console.log('⏳ Retrying in 2 seconds...')
+            await new Promise(resolve => setTimeout(resolve, 2000))
           }
         } else {
           break
@@ -236,7 +236,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!userData || !profileData) {
         console.error('❌ Failed to fetch user data after retries')
-        throw new Error('Unable to retrieve user account data. Please try refreshing the page.')
+        
+        // If we have userData but no profileData, try to create the profile
+        if (userData && !profileData) {
+          console.log('🔧 Attempting to create missing profile...')
+          const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
+          
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              user_id: authUser.id,
+              full_name: fullName
+            })
+            .select()
+            .single()
+          
+          if (createError) {
+            console.error('❌ Failed to create profile:', createError)
+            throw new Error('Unable to create user profile. Please try refreshing the page.')
+          } else {
+            profileData = newProfile
+            console.log('✅ Profile created successfully')
+          }
+        }
+        
+        // If we have profileData but no userData, try to create the user
+        if (profileData && !userData) {
+          console.log('🔧 Attempting to create missing user record...')
+          
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: authUser.id,
+              email: authUser.email!,
+              role: 'student',
+              language: 'english'
+            })
+            .select()
+            .single()
+          
+          if (createError) {
+            console.error('❌ Failed to create user:', createError)
+            throw new Error('Unable to create user record. Please try refreshing the page.')
+          } else {
+            userData = newUser
+            console.log('✅ User record created successfully')
+          }
+        }
+        
+        // If we still don't have both, throw an error
+        if (!userData || !profileData) {
+          throw new Error('Unable to retrieve or create user account data. Please try refreshing the page.')
+        }
       }
 
       console.log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
