@@ -6,6 +6,7 @@ import { LanguageProvider } from './contexts/LanguageContext'
 import { DataProvider } from './contexts/DataContext'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
+import ResetPasswordForm from './components/Auth/ResetPasswordForm'
 import Header from './components/Layout/Header'
 import Sidebar from './components/Layout/Sidebar'
 import Marquee from './components/Layout/Marquee'
@@ -119,6 +120,7 @@ function App() {
       <AuthProvider>
         <LanguageProvider>
           <Routes>
+            <Route path="/auth/reset-password" element={<ResetPasswordForm />} />
             <Route path="/*" element={<AppContent />} />
           </Routes>
           <Toaster

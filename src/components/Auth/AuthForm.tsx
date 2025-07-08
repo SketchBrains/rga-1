@@ -96,6 +96,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       // This prevents automatic login and forces password setting
       await signOut()
       
+      // Sign out the user immediately after OTP verification
+      // This prevents automatic login and forces password setting
+      await signOut()
+      
       toast.success(language === 'hindi' 
         ? 'ईमेल सत्यापित! अब अपना पासवर्ड सेट करें।'
         : 'Email verified! Now set your password.')

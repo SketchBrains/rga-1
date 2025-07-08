@@ -391,6 +391,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw new Error(`Set password failed: ${error.message}`)
       
+      // Sign out after setting password to force user to login with new credentials
       await supabase.auth.signOut()
     } catch (error) {
       console.error('Set password error:', error)
