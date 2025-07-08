@@ -164,55 +164,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const ensureUserRecords = async (authUser: SupabaseUser) => {
-    try {
-      console.log('🔧 Ensuring user records exist for:', authUser.id)
-      
-      // Try to create user record (will be ignored if exists due to ON CONFLICT)
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authUser.id,
-          email: authUser.email!,
-          role: 'student',
-          language: 'english'
-        })
-
-      // Only log error if it's not a duplicate key error
-      if (userError && userError.code !== '23505') {
-        console.error('❌ Error creating user record:', userError)
-        throw userError
-      }
-
-      // Try to create profile record (will be ignored if exists due to ON CONFLICT)
-      const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authUser.id,
-          full_name: fullName
-        })
-
-      // Only log error if it's not a duplicate key error
-      if (profileError && profileError.code !== '23505') {
-        console.error('❌ Error creating profile record:', profileError)
-        throw profileError
-      }
-
-      console.log('✅ User records ensured')
-      return true
-    } catch (error) {
-      console.error('❌ Failed to ensure user records:', error)
-      return false
-    }
-  }
-
   const fetchUserData = async (authUser: SupabaseUser) => {
     try {
       console.log('🔍 Fetching user data for:', authUser.id)
-      
-      // First ensure user records exist
-      await ensureUserRecords(authUser)
       
       // Clean up any duplicate profiles first
       await cleanupDuplicateProfiles(authUser.id)
@@ -310,33 +264,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('🔐 Attempting sign in for:', email)
       setLoading(true)
       
-      // First check if user exists in our database
-      const { data: existingUser, error: userCheckError } = await supabase
-        .from('users')
-        .select('id, email')
-        .eq('email', email)
-        .maybeSingle()
-
-      if (userCheckError) {
-        console.error('❌ Error checking user existence:', userCheckError)
-        throw new Error('Failed to verify user account')
-      }
-
-      if (!existingUser) {
-        console.log('❌ User not found in database:', email)
-        throw new Error('UserNotFound')
-      }
-      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
       
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Invalid email or password. Please check your credentials and try again.')
-        }
-        throw new Error(`Sign-in failed: ${error.message}`)
+        throw new Error(error.message || 'Sign-in failed')
       }
       
       console.log('✅ Sign in successful')
@@ -358,22 +292,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Full name is required')
       }
 
-      // Check if user already exists
-      const { data: existingUser, error: userCheckError } = await supabase
-        .from('users')
-        .select('id, email')
-        .eq('email', email)
-        .maybeSingle()
-
-      if (userCheckError) {
-        console.error('❌ Error checking existing user:', userCheckError)
-        throw new Error('Failed to verify email availability')
-      }
-
-      if (existingUser) {
-        throw new Error('Email already registered')
-      }
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password: 'temporary_password_' + Math.random().toString(36), // Temporary password
@@ -385,15 +303,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       })
       
-      if (error) throw new Error(`Auth signup failed: ${error.message}`)
+      if (error) throw new Error(error.message || 'Signup failed')
 
-      if (data.user && !data.session) {
-        // User needs to verify email with OTP
-        return { user: null, session: null }
-      }
-
-      // The database trigger will handle creating user and profile records
-      return { user: null, session: data.session }
+      return data
     } catch (error) {
       console.error('Signup error:', error)
       throw error

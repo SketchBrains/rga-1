@@ -52,15 +52,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       await signIn(formData.email, formData.password)
       toast.success('Welcome back!')
     } catch (error: any) {
-      if (error.message === 'UserNotFound') {
-        toast.error(language === 'hindi' 
-          ? 'यह ईमेल पंजीकृत नहीं है। कृपया पहले साइन अप करें।'
-          : 'This email is not registered. Please sign up first.')
-        setFormData({ ...formData, fullName: '', otp: '', newPassword: '', confirmPassword: '' })
-        setCurrentStep('signup-request-otp')
-      } else {
-        toast.error(error.message || 'Login failed')
-      }
+      toast.error(error.message || 'Login failed')
     } finally {
       setLoading(false)
     }
@@ -78,7 +70,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
     try {
       const result = await signUp(formData.email, formData.fullName)
-      if (!result.session) {
+      if (result.user && !result.session) {
         // User needs to verify email with OTP
         setCurrentStep('signup-verify-otp')
         toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
@@ -87,17 +79,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
         toast.success(language === 'hindi' ? 'खाता सफलतापूर्वक बनाया गया!' : 'Account created successfully!')
       }
     } catch (error: any) {
-      const errorMessage =
-        error.message === 'Email already registered'
-          ? language === 'hindi'
-            ? 'यह ईमेल पहले से पंजीकृत है। कृपया लॉगिन करें।'
-            : 'This email is already registered. Please login instead.'
-          : error.message || (language === 'hindi' ? 'साइन अप विफल' : 'Signup failed')
-      toast.error(errorMessage)
-      
-      if (error.message === 'Email already registered') {
-        setCurrentStep('login')
-      }
+      toast.error(error.message || (language === 'hindi' ? 'साइन अप विफल' : 'Signup failed'))
     } finally {
       setLoading(false)
     }
