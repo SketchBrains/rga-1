@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
-import { useData } from '../../contexts/DataContext'
-import { useLanguage } from '../../contexts/LanguageContext'
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { useData } from '../../contexts/DataContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   FileText, 
   Upload, 
@@ -15,70 +15,83 @@ import {
   FileType,
   Search,
   Filter
-} from 'lucide-react'
-import { s3Client, wasabiBucketName, PutObjectCommand, DeleteObjectCommand, generateFilePath, getWasabiPublicUrl, extractKeyFromUrl } from '../../lib/wasabi'
-import toast from 'react-hot-toast'
+} from 'lucide-react';
+import { s3Client, wasabiBucketName, PutObjectCommand, DeleteObjectCommand, generateFilePath, getWasabiPublicUrl, extractKeyFromUrl } from '../../lib/wasabi';
+import toast from 'react-hot-toast';
 
 const StudentDocuments: React.FC = () => {
-  const { user } = useAuth()
-  const { documents, loadingDocuments, fetchDocuments } = useData()
-  const { language, t } = useLanguage()
+  const { user } = useAuth();
+  const { documents, loadingDocuments, fetchDocuments } = useData();
+  const { language, t } = useLanguage();
   
-  const [filteredDocuments, setFilteredDocuments] = useState<any[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [fileTypeFilter, setFileTypeFilter] = useState('all')
-  const [uploadingFiles, setUploadingFiles] = useState<string[]>([])
+  const [filteredDocuments, setFilteredDocuments] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [fileTypeFilter, setFileTypeFilter] = useState('all');
+  const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
-      fetchDocuments()
+      fetchDocuments();
     }
-  }, [user, fetchDocuments])
+  }, [user, fetchDocuments]);
 
   useEffect(() => {
-    filterDocuments()
-  }, [documents, searchTerm, fileTypeFilter])
+    filterDocuments();
+  }, [documents, searchTerm, fileTypeFilter]);
 
   const filterDocuments = () => {
-    let filtered = documents
+    let filtered = documents;
 
     if (searchTerm) {
       filtered = filtered.filter(doc => 
         doc.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         doc.applications?.scholarship_forms?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         doc.form_fields?.field_label?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      );
     }
 
     if (fileTypeFilter !== 'all') {
       filtered = filtered.filter(doc => {
-        const type = doc.file_type.toLowerCase()
+        const type = doc.file_type.toLowerCase();
         switch (fileTypeFilter) {
           case 'pdf':
-            return type.includes('pdf')
+            return type.includes('pdf');
           case 'image':
-            return type.includes('image') || type.includes('jpeg') || type.includes('jpg') || type.includes('png')
+            return type.includes('image') || type.includes('jpeg') || type.includes('jpg') || type.includes('png');
           case 'document':
-            return type.includes('doc') || type.includes('docx') || type.includes('txt')
+            return type.includes('doc') || type.includes('docx') || type.includes('txt');
           default:
-            return true
+            return true;
         }
-      })
+      });
     }
 
-    setFilteredDocuments(filtered)
-  }
+    setFilteredDocuments(filtered);
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    const file = files[0]
-    const maxSize = 5 * 1024 * 1024 // 5MB
+    const file = files[0];
+    const maxSize = 5 * 1024 * 1024; // 5MB
     
+    // Validate file object without instanceof
+    if (!file || typeof file !== 'object' || !file.name || !file.type || !file.size) {
+      console.error('Invalid file object:', file);
+      toast.error('Invalid file selected');
+      return;
+    }
+
+    console.log('File validation passed:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+
     if (file.size > maxSize) {
-      toast.error('File size must be less than 5MB')
-      return
+      toast.error('File size must be less than 5MB');
+      return;
     }
 
     const allowedTypes = [
@@ -87,35 +100,64 @@ const StudentDocuments: React.FC = () => {
       'image/jpg',
       'image/png',
       'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ]
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
 
     if (!allowedTypes.includes(file.type)) {
-      toast.error('File type not supported. Please upload PDF, DOC, DOCX, or image files.')
-      return
+      toast.error('File type not supported. Please upload PDF, DOC, DOCX, or image files.');
+      return;
     }
 
-    setUploadingFiles(prev => [...prev, file.name])
+    setUploadingFiles(prev => [...prev, file.name]);
 
     try {
+      console.log('Uploading file:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        bucket: wasabiBucketName,
+      });
+
       // Upload file to Wasabi
-      const fileExt = file.name.split('.').pop()
-      const fileKey = `${generateFilePath(user?.id || '', 'user-uploads')}.${fileExt}`
+      const fileExt = file.name.split('.').pop();
+      const fileKey = `${generateFilePath(user?.id || '', 'user-uploads')}.${fileExt}`;
       
       const uploadCommand = new PutObjectCommand({
         Bucket: wasabiBucketName,
         Key: fileKey,
-        Body: file,
+        Body: file, // Use File object directly
         ContentType: file.type,
-        ACL: 'public-read', // Make the file publicly accessible
-      })
+        ACL: 'public-read', // Attempt to make the file publicly accessible
+      });
 
-      await s3Client.send(uploadCommand)
+      await s3Client.send(uploadCommand);
 
-      // Get public URL for Wasabi
-      const publicUrl = getWasabiPublicUrl(fileKey)
+      // Get public URL for Wasabi (Step 2)
+      const publicUrl = getWasabiPublicUrl(fileKey);
+      console.log('Generated Public URL:', publicUrl);
 
-      // Save document record to Supabase
+      // Validate public URL format
+      if (!publicUrl.startsWith('https://s3.ap-southeast-1.wasabisys.com/rganyas-Uploads/')) {
+        console.error('Invalid public URL:', publicUrl);
+        toast.error('Failed to generate valid file URL');
+        return;
+      }
+
+      // Test public access (Step 2 verification)
+      try {
+        const response = await fetch(publicUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          console.error('Public URL is not accessible:', response.status, response.statusText);
+          toast.error('File uploaded but not publicly accessible. Contact Wasabi Support to enable public access.');
+          return;
+        }
+      } catch (error) {
+        console.error('Error verifying public URL:', error);
+        toast.error('File uploaded but not publicly accessible. Check Wasabi bucket settings or contact support.');
+        return;
+      }
+
+      // Save document record to Supabase (Step 3)
       const { error: insertError } = await supabase
         .from('documents')
         .insert({
@@ -125,86 +167,98 @@ const StudentDocuments: React.FC = () => {
           file_url: publicUrl,
           file_type: file.type,
           file_size: file.size,
-          uploaded_by: user?.id
-        })
+          uploaded_by: user?.id,
+          created_at: new Date().toISOString(), // Explicitly set timestamp
+        });
 
-      if (insertError) throw insertError
+      if (insertError) {
+        console.error('Supabase document insert error:', insertError);
+        toast.error(`Failed to save document: ${insertError.message}`);
+        throw insertError;
+      }
 
-      toast.success('File uploaded successfully')
-      fetchDocuments()
-    } catch (error) {
-      console.error('Error uploading file to Wasabi:', error)
-      toast.error('Failed to upload file')
+      toast.success('File uploaded successfully');
+      fetchDocuments();
+    } catch (error: any) {
+      console.error('Error uploading file to Wasabi:', error);
+      if (error.name === 'AccessDenied') {
+        toast.error('File upload failed: Public access is disabled. Contact Wasabi Support to enable public access.');
+      } else {
+        toast.error('Failed to upload file');
+      }
     } finally {
-      setUploadingFiles(prev => prev.filter(name => name !== file.name))
+      setUploadingFiles(prev => prev.filter(name => name !== file.name));
     }
-  }
+  };
 
   const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string) => {
-    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
     try {
       // Extract the key from the Wasabi URL
-      const key = extractKeyFromUrl(fileUrl)
+      const key = extractKeyFromUrl(fileUrl);
 
       // Delete file from Wasabi
       const deleteCommand = new DeleteObjectCommand({
         Bucket: wasabiBucketName,
         Key: key,
-      })
-      await s3Client.send(deleteCommand)
+      });
+      await s3Client.send(deleteCommand);
 
       // Delete document record from Supabase
       const { error } = await supabase
         .from('documents')
         .delete()
-        .eq('id', documentId)
+        .eq('id', documentId);
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase document delete error:', error);
+        throw error;
+      }
 
-      toast.success('Document deleted successfully')
-      fetchDocuments()
+      toast.success('Document deleted successfully');
+      fetchDocuments();
     } catch (error) {
-      console.error('Error deleting document:', error)
-      toast.error('Failed to delete document')
+      console.error('Error deleting document:', error);
+      toast.error('Failed to delete document');
     }
-  }
+  };
 
   const getFileIcon = (fileType: string) => {
-    const type = fileType.toLowerCase()
+    const type = fileType.toLowerCase();
     if (type.includes('pdf')) {
-      return <FileType className="w-8 h-8 text-red-500" />
+      return <FileType className="w-8 h-8 text-red-500" />;
     } else if (type.includes('image') || type.includes('jpeg') || type.includes('jpg') || type.includes('png')) {
-      return <Image className="w-8 h-8 text-green-500" />
+      return <Image className="w-8 h-8 text-green-500" />;
     } else if (type.includes('doc') || type.includes('docx')) {
-      return <File className="w-8 h-8 text-blue-500" />
+      return <File className="w-8 h-8 text-blue-500" />;
     } else {
-      return <FileText className="w-8 h-8 text-gray-500" />
+      return <FileText className="w-8 h-8 text-gray-500" />;
     }
-  }
+  };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   if (loadingDocuments && documents.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">My Documents</h1>
-          <p className="text-gray-600">Manage your uploaded documents and files</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('my_documents')}</h1>
+          <p className="text-gray-600">{t('manage_your_documents')}</p>
         </div>
         <div className="relative">
           <input
@@ -219,7 +273,7 @@ const StudentDocuments: React.FC = () => {
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
           >
             <Upload className="w-4 h-4" />
-            <span>Upload Document</span>
+            <span>{t('upload_document')}</span>
           </label>
         </div>
       </div>
@@ -231,7 +285,7 @@ const StudentDocuments: React.FC = () => {
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search documents..."
+              placeholder={t('search_documents')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -242,10 +296,10 @@ const StudentDocuments: React.FC = () => {
             onChange={(e) => setFileTypeFilter(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="all">All File Types</option>
-            <option value="pdf">PDF Documents</option>
-            <option value="image">Images</option>
-            <option value="document">Word Documents</option>
+            <option value="all">{t('all_file_types')}</option>
+            <option value="pdf">{t('pdf_documents')}</option>
+            <option value="image">{t('images')}</option>
+            <option value="document">{t('word_documents')}</option>
           </select>
         </div>
       </div>
@@ -253,7 +307,7 @@ const StudentDocuments: React.FC = () => {
       {/* Upload Progress */}
       {uploadingFiles.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h3 className="text-sm font-medium text-blue-900 mb-2">Uploading Files</h3>
+          <h3 className="text-sm font-medium text-blue-900 mb-2">{t('uploading_files')}</h3>
           {uploadingFiles.map((fileName) => (
             <div key={fileName} className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -268,12 +322,12 @@ const StudentDocuments: React.FC = () => {
         <div className="text-center py-12">
           <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {documents.length === 0 ? 'No documents uploaded' : 'No documents match your search'}
+            {documents.length === 0 ? t('no_documents_uploaded') : t('no_documents_match')}
           </h3>
           <p className="text-gray-600 mb-4">
             {documents.length === 0 
-              ? 'Upload your first document to get started' 
-              : 'Try adjusting your search or filter criteria'}
+              ? t('upload_first_document')
+              : t('adjust_search_criteria')}
           </p>
           {documents.length === 0 && (
             <label
@@ -281,7 +335,7 @@ const StudentDocuments: React.FC = () => {
               className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
             >
               <Upload className="w-4 h-4" />
-              <span>Upload Your First Document</span>
+              <span>{t('upload_first_document')}</span>
             </label>
           )}
         </div>
@@ -307,7 +361,7 @@ const StudentDocuments: React.FC = () => {
                 <button
                   onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url)}
                   className="p-1 text-red-500 hover:text-red-700"
-                  title="Delete document"
+                  title={t('delete_document')}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -317,7 +371,7 @@ const StudentDocuments: React.FC = () => {
               <div className="space-y-2 mb-4">
                 {document.applications?.scholarship_forms && (
                   <div>
-                    <p className="text-xs font-medium text-gray-700">Related to:</p>
+                    <p className="text-xs font-medium text-gray-700">{t('related_to')}:</p>
                     <p className="text-xs text-gray-600">
                       {language === 'hindi' && document.applications.scholarship_forms.title_hindi
                         ? document.applications.scholarship_forms.title_hindi
@@ -327,7 +381,7 @@ const StudentDocuments: React.FC = () => {
                 )}
                 {document.form_fields && (
                   <div>
-                    <p className="text-xs font-medium text-gray-700">Field:</p>
+                    <p className="text-xs font-medium text-gray-700">{t('field')}:</p>
                     <p className="text-xs text-gray-600">
                       {language === 'hindi' && document.form_fields.field_label_hindi
                         ? document.form_fields.field_label_hindi
@@ -337,7 +391,7 @@ const StudentDocuments: React.FC = () => {
                 )}
                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                   <Calendar className="w-3 h-3" />
-                  <span>Uploaded: {new Date(document.created_at).toLocaleDateString()}</span>
+                  <span>{t('uploaded')}: {new Date(document.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
 
@@ -350,7 +404,7 @@ const StudentDocuments: React.FC = () => {
                   className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Eye className="w-4 h-4" />
-                  <span>View</span>
+                  <span>{t('view')}</span>
                 </a>
                 <a
                   href={document.file_url}
@@ -358,7 +412,7 @@ const StudentDocuments: React.FC = () => {
                   className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download</span>
+                  <span>{t('download')}</span>
                 </a>
               </div>
             </div>
@@ -368,10 +422,10 @@ const StudentDocuments: React.FC = () => {
 
       {/* File Upload Guidelines */}
       <div className="mt-8 bg-gray-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Upload Guidelines</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('upload_guidelines')}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
           <div>
-            <h4 className="font-medium text-gray-700 mb-2">Supported File Types:</h4>
+            <h4 className="font-medium text-gray-700 mb-2">{t('supported_file_types')}:</h4>
             <ul className="space-y-1">
               <li>• PDF documents (.pdf)</li>
               <li>• Word documents (.doc, .docx)</li>
@@ -379,7 +433,7 @@ const StudentDocuments: React.FC = () => {
             </ul>
           </div>
           <div>
-            <h4 className="font-medium text-gray-700 mb-2">Requirements:</h4>
+            <h4 className="font-medium text-gray-700 mb-2">{t('requirements')}:</h4>
             <ul className="space-y-1">
               <li>• Maximum file size: 5MB</li>
               <li>• Clear and readable documents</li>
@@ -389,7 +443,7 @@ const StudentDocuments: React.FC = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default StudentDocuments
+export default StudentDocuments;
