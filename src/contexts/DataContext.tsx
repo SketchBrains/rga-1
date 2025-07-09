@@ -58,7 +58,7 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 const cache = new Map<string, CacheEntry<any>>()
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   
   // State for all cached data
   const [scholarshipForms, setScholarshipForms] = useState<any[]>([])
@@ -84,6 +84,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cached = cache.get(key)
     if (!cached) return false
     return (Date.now() - cached.timestamp) < CACHE_DURATION
+  }
+
+  // Helper function to check if error is authentication-related
+  const isAuthError = (error: any): boolean => {
+    if (!error) return false
+    
+    // Check for common authentication error indicators
+    const authErrorMessages = [
+      'JWT expired',
+      'Invalid JWT',
+      'Token has expired',
+      'Authentication required',
+      'Invalid token',
+      'Session not found',
+      'User not authenticated'
+    ]
+    
+    const errorMessage = error.message?.toLowerCase() || ''
+    const isJWTError = authErrorMessages.some(msg => errorMessage.includes(msg.toLowerCase()))
+    const isStatusUnauthorized = error.status === 401 || error.code === 401
+    const isAuthCode = error.code === 'PGRST301' || error.code === 'PGRST302'
+    
+    return isJWTError || isStatusUnauthorized || isAuthCode
   }
 
   // Helper function to get from cache or fetch
@@ -123,6 +146,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setData(data)
     } catch (error) {
       console.error(`Error fetching ${key}:`, error)
+      
+      // Check if this is an authentication error
+      if (isAuthError(error)) {
+        console.log('🔐 Authentication error detected, signing out user...')
+        try {
+          await signOut()
+        } catch (signOutError) {
+          console.error('Error during sign out:', signOutError)
+        }
+        return
+      }
+      
       // Remove loading state from cache on error
       cache.delete(key)
     } finally {

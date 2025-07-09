@@ -29,8 +29,9 @@ const MarqueeEditor: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false)
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const { user } = useAuth()
-  const { t } = useLanguage()
+  const { language } = useLanguage()
 
   const [formData, setFormData] = useState({
     message: '',
@@ -44,12 +45,18 @@ const MarqueeEditor: React.FC = () => {
 
   const fetchAnnouncements = async () => {
     try {
+      console.log('🔍 Fetching announcements...')
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error fetching announcements:', error)
+        throw error
+      }
+      
+      console.log('✅ Announcements fetched successfully:', data?.length || 0, 'items')
       setAnnouncements(data || [])
     } catch (error) {
       console.error('Error fetching announcements:', error)
@@ -86,8 +93,25 @@ const MarqueeEditor: React.FC = () => {
         return
       }
 
+      if (!user) {
+        console.error('❌ No user found in context')
+        toast.error('User not authenticated. Please refresh and try again.')
+        return
+      }
+
+      console.log('🔍 Current user ID for created_by:', user.id)
+      console.log('📝 Form data to save:', {
+        message: formData.message,
+        message_hindi: formData.message_hindi,
+        is_active: formData.is_active,
+        created_by: user.id
+      })
+
+      setSaving(true)
+
       if (editingAnnouncement) {
         // Update existing announcement
+        console.log('📝 Updating announcement:', editingAnnouncement.id)
         const { error } = await supabase
           .from('announcements')
           .update({
@@ -98,29 +122,68 @@ const MarqueeEditor: React.FC = () => {
           })
           .eq('id', editingAnnouncement.id)
 
-        if (error) throw error
+        if (error) {
+          console.error('❌ Error updating announcement:', error)
+          throw error
+        }
+        
+        console.log('✅ Announcement updated successfully')
         toast.success('Announcement updated successfully')
       } else {
         // Create new announcement
-        const { error } = await supabase
+        console.log('📝 Creating new announcement...')
+        const insertData = {
+          message: formData.message,
+          message_hindi: formData.message_hindi || null,
+          is_active: formData.is_active,
+          created_by: user.id
+        }
+        
+        console.log('📤 Inserting data:', insertData)
+        
+        const { data, error } = await supabase
           .from('announcements')
-          .insert({
-            message: formData.message,
-            message_hindi: formData.message_hindi || null,
-            is_active: formData.is_active,
-            created_by: user?.id
-          })
+          .insert(insertData)
+          .select()
 
-        if (error) throw error
+        if (error) {
+          console.error('❌ Error creating announcement:', error)
+          console.error('❌ Error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+          throw error
+        }
+
+        console.log('✅ Announcement created successfully:', data)
         toast.success('Announcement created successfully')
       }
 
       setIsCreating(false)
       setEditingAnnouncement(null)
-      fetchAnnouncements()
-    } catch (error) {
+      await fetchAnnouncements()
+    } catch (error: any) {
       console.error('Error saving announcement:', error)
-      toast.error('Failed to save announcement')
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to save announcement'
+      if (error.message) {
+        if (error.message.includes('foreign key')) {
+          errorMessage = 'User authentication error. Please refresh and try again.'
+        } else if (error.message.includes('permission')) {
+          errorMessage = 'Permission denied. Please check your admin privileges.'
+        } else if (error.message.includes('violates')) {
+          errorMessage = 'Data validation error. Please check your input.'
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      
+      toast.error(errorMessage)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -128,14 +191,20 @@ const MarqueeEditor: React.FC = () => {
     if (!confirm('Are you sure you want to delete this announcement?')) return
 
     try {
+      console.log('🗑️ Deleting announcement:', id)
       const { error } = await supabase
         .from('announcements')
         .delete()
         .eq('id', id)
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error deleting announcement:', error)
+        throw error
+      }
+      
+      console.log('✅ Announcement deleted successfully')
       toast.success('Announcement deleted successfully')
-      fetchAnnouncements()
+      await fetchAnnouncements()
     } catch (error) {
       console.error('Error deleting announcement:', error)
       toast.error('Failed to delete announcement')
@@ -144,6 +213,7 @@ const MarqueeEditor: React.FC = () => {
 
   const toggleStatus = async (id: string, currentStatus: boolean) => {
     try {
+      console.log('🔄 Toggling announcement status:', id, 'from', currentStatus, 'to', !currentStatus)
       const { error } = await supabase
         .from('announcements')
         .update({ 
@@ -152,9 +222,14 @@ const MarqueeEditor: React.FC = () => {
         })
         .eq('id', id)
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error updating announcement status:', error)
+        throw error
+      }
+      
+      console.log('✅ Announcement status updated successfully')
       toast.success(`Announcement ${!currentStatus ? 'activated' : 'deactivated'} successfully`)
-      fetchAnnouncements()
+      await fetchAnnouncements()
     } catch (error) {
       console.error('Error updating announcement status:', error)
       toast.error('Failed to update announcement status')
@@ -265,15 +340,17 @@ const MarqueeEditor: React.FC = () => {
               <button
                 onClick={() => setIsCreating(false)}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                disabled={saving}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                disabled={saving}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
-                <span>{editingAnnouncement ? 'Update' : 'Create'}</span>
+                <span>{saving ? 'Saving...' : (editingAnnouncement ? 'Update' : 'Create')}</span>
               </button>
             </div>
           </div>
