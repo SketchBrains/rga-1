@@ -1,68 +1,69 @@
-import React, { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
-import { useLanguage } from '../../contexts/LanguageContext'
-import { 
-  Search, 
-  Filter, 
-  Eye, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  Search,
+  Filter,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Clock,
   Pause,
   Download,
   Mail,
   User,
   Calendar,
   FileText,
-  AlertCircle
-} from 'lucide-react'
-import toast from 'react-hot-toast'
+  AlertCircle,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Application {
-  id: string
-  form_id: string
-  student_id: string
-  status: 'pending' | 'approved' | 'rejected' | 'hold'
-  submitted_at: string
-  reviewed_at?: string
-  reviewed_by?: string
-  admin_notes?: string
+  id: string;
+  form_id: string;
+  student_id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'hold';
+  submitted_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  admin_notes?: string;
   scholarship_forms: {
-    title: string
-    education_level: string
-  }
+    title: string;
+    education_level: string;
+  };
   users: {
-    email: string
+    email: string;
     profiles: {
-      full_name: string
-      phone?: string
-    }
-  }
+      full_name: string;
+      phone?: string;
+      is_verified?: boolean;
+    };
+  };
 }
 
 const ViewApplications: React.FC = () => {
-  const [applications, setApplications] = useState<Application[]>([])
-  const [filteredApplications, setFilteredApplications] = useState<Application[]>([])
-  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
-  const [applicationDetails, setApplicationDetails] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [formFilter, setFormFilter] = useState('all')
-  const [forms, setForms] = useState<any[]>([])
-  const { user } = useAuth()
-  const { t } = useLanguage()
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [filteredApplications, setFilteredApplications] = useState<Application[]>([]);
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [applicationDetails, setApplicationDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [formFilter, setFormFilter] = useState('all');
+  const [forms, setForms] = useState<any[]>([]);
+  const { user } = useAuth();
+  const { t } = useLanguage();
 
   useEffect(() => {
-    fetchApplications()
-    fetchForms()
-  }, [])
+    fetchApplications();
+    fetchForms();
+  }, []);
 
   useEffect(() => {
-    filterApplications()
-  }, [applications, searchTerm, statusFilter, formFilter])
+    filterApplications();
+  }, [applications, searchTerm, statusFilter, formFilter]);
 
   const fetchApplications = async () => {
     try {
@@ -76,53 +77,54 @@ const ViewApplications: React.FC = () => {
             profiles (full_name, phone, is_verified)
           )
         `)
-        .order('submitted_at', { ascending: false })
+        .order('submitted_at', { ascending: false });
 
-      if (error) throw error
-      setApplications(data || [])
+      if (error) throw error;
+      setApplications(data || []);
     } catch (error) {
-      console.error('Error fetching applications:', error)
-      toast.error('Failed to load applications')
+      console.error('Error fetching applications:', error);
+      toast.error('Failed to load applications');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchForms = async () => {
     try {
       const { data, error } = await supabase
         .from('scholarship_forms')
         .select('id, title')
-        .order('title')
+        .order('title');
 
-      if (error) throw error
-      setForms(data || [])
+      if (error) throw error;
+      setForms(data || []);
     } catch (error) {
-      console.error('Error fetching forms:', error)
+      console.error('Error fetching forms:', error);
     }
-  }
+  };
 
   const filterApplications = () => {
-    let filtered = applications
+    let filtered = applications;
 
     if (searchTerm) {
-      filtered = filtered.filter(app => 
-        app.users?.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        app.users?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        app.scholarship_forms?.title?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      filtered = filtered.filter(
+        (app) =>
+          app.users?.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          app.users?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          app.scholarship_forms?.title?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(app => app.status === statusFilter)
+      filtered = filtered.filter((app) => app.status === statusFilter);
     }
 
     if (formFilter !== 'all') {
-      filtered = filtered.filter(app => app.form_id === formFilter)
+      filtered = filtered.filter((app) => app.form_id === formFilter);
     }
 
-    setFilteredApplications(filtered)
-  }
+    setFilteredApplications(filtered);
+  };
 
   const fetchApplicationDetails = async (applicationId: string) => {
     try {
@@ -132,42 +134,41 @@ const ViewApplications: React.FC = () => {
           *,
           form_fields (field_label, field_label_hindi, field_type)
         `)
-        .eq('application_id', applicationId)
+        .eq('application_id', applicationId);
 
-      if (error) throw error
+      if (error) throw error;
 
       const { data: documents, error: docsError } = await supabase
         .from('documents')
         .select('*')
-        .eq('application_id', applicationId)
+        .eq('application_id', applicationId);
 
-      if (docsError) throw docsError
+      if (docsError) throw docsError;
 
       setApplicationDetails({
         responses: data || [],
-        documents: documents || []
-      })
+        documents: documents || [],
+      });
     } catch (error) {
-      console.error('Error fetching application details:', error)
-      toast.error('Failed to load application details')
+      console.error('Error fetching application details:', error);
+      toast.error('Failed to load application details');
     }
-  }
+  };
 
   const handleViewApplication = (application: Application) => {
-    setSelectedApplication(application)
-    fetchApplicationDetails(application.id)
-  }
+    setSelectedApplication(application);
+    fetchApplicationDetails(application.id);
+  };
 
   const updateApplicationStatus = async (applicationId: string, status: string, notes?: string) => {
     try {
-      setUpdating(true)
-      
-      // Get the application details to find the student
-      const currentApplication = applications.find(app => app.id === applicationId)
+      setUpdating(true);
+
+      const currentApplication = applications.find((app) => app.id === applicationId);
       if (!currentApplication) {
-        throw new Error('Application not found')
+        throw new Error('Application not found');
       }
-      
+
       const { error } = await supabase
         .from('applications')
         .update({
@@ -175,74 +176,72 @@ const ViewApplications: React.FC = () => {
           admin_notes: notes,
           reviewed_at: new Date().toISOString(),
           reviewed_by: user?.id,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', applicationId)
+        .eq('id', applicationId);
 
-      if (error) throw error
-      
-      // If application is approved, mark the student as verified
+      if (error) throw error;
+
       if (status === 'approved') {
-        console.log('🎉 Application approved, marking student as verified...')
+        console.log('🎉 Application approved, marking student as verified...');
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
             is_verified: true,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('user_id', currentApplication.student_id)
-        
+          .eq('user_id', currentApplication.student_id);
+
         if (profileError) {
-          console.error('❌ Error updating profile verification:', profileError)
-          // Don't throw error here as the main application update succeeded
+          console.error('❌ Error updating profile verification:', profileError);
         } else {
-          console.log('✅ Student profile marked as verified')
+          console.log('✅ Student profile marked as verified');
         }
       }
 
-      toast.success(`Application ${status} successfully`)
-      await fetchApplications()
-      setSelectedApplication(null)
+      toast.success(`Application ${status} successfully`);
+      await fetchApplications();
+      setSelectedApplication(null);
     } catch (error) {
-      console.error('Error updating application:', error)
-      toast.error('Failed to update application')
+      console.error('Error updating application:', error);
+      toast.error('Failed to update application');
     } finally {
-      setUpdating(false)
+      setUpdating(false);
     }
-  }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'approved':
-        return <CheckCircle className="w-5 h-5 text-green-500" />
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'rejected':
-        return <XCircle className="w-5 h-5 text-red-500" />
+        return <XCircle className="w-5 h-5 text-red-500" />;
       case 'hold':
-        return <Pause className="w-5 h-5 text-yellow-500" />
+        return <Pause className="w-5 h-5 text-yellow-500" />;
       default:
-        return <Clock className="w-5 h-5 text-blue-500" />
+        return <Clock className="w-5 h-5 text-blue-500" />;
     }
-  }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 text-green-800';
       case 'rejected':
-        return 'bg-red-100 text-red-800'
+        return 'bg-red-100 text-red-800';
       case 'hold':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-yellow-100 text-yellow-800';
       default:
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-blue-800';
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -282,13 +281,16 @@ const ViewApplications: React.FC = () => {
             className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Forms</option>
-            {forms.map(form => (
-              <option key={form.id} value={form.id}>{form.title}</option>
+            {forms.map((form) => (
+              <option key={form.id} value={form.id}>
+                {form.title}
+              </option>
             ))}
           </select>
-          <button 
+          <button
             onClick={() => window.open('/admin/export', '_blank')}
-            className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
             <Download className="w-4 h-4" />
             <span>Export</span>
           </button>
@@ -330,24 +332,20 @@ const ViewApplications: React.FC = () => {
                         <div className="text-sm font-medium text-gray-900">
                           {application.users?.profiles?.full_name || 'N/A'}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {application.users?.email}
-                        </div>
+                        <div className="text-sm text-gray-500">{application.users?.email}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {application.scholarship_forms?.title}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {application.scholarship_forms?.education_level}
-                    </div>
+                    <div className="text-sm text-gray-900">{application.scholarship_forms?.title}</div>
+                    <div className="text-sm text-gray-500">{application.scholarship_forms?.education_level}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(application.status)}
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}
+                      >
                         {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                       </span>
                     </div>
@@ -386,8 +384,15 @@ const ViewApplications: React.FC = () => {
       {selectedApplication && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Application Details</h2>
                   <div className="flex items-center space-x-2">
-                    <p className="text-gray-900">{selectedApplication.users?.profiles?.full_name}</p>
+                    <p className="text-gray-600">
+                      {selectedApplication.users?.profiles?.full_name} -{' '}
+                      {selectedApplication.scholarship_forms?.title}
+                    </p>
                     {selectedApplication.users?.profiles?.is_verified && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <CheckCircle className="w-3 h-3 mr-1" />
@@ -395,14 +400,6 @@ const ViewApplications: React.FC = () => {
                       </span>
                     )}
                   </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Application Details
-                  </h2>
-                  <p className="text-gray-600">
-                    {selectedApplication.users?.profiles?.full_name} - {selectedApplication.scholarship_forms?.title}
-                  </p>
                 </div>
                 <button
                   onClick={() => setSelectedApplication(null)}
@@ -499,8 +496,8 @@ const ViewApplications: React.FC = () => {
               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                 <button
                   onClick={() => {
-                    const notes = (document.getElementById('admin-notes') as HTMLTextAreaElement)?.value
-                    updateApplicationStatus(selectedApplication.id, 'rejected', notes)
+                    const notes = (document.getElementById('admin-notes') as HTMLTextAreaElement)?.value;
+                    updateApplicationStatus(selectedApplication.id, 'rejected', notes);
                   }}
                   disabled={updating}
                   className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
@@ -510,8 +507,8 @@ const ViewApplications: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    const notes = (document.getElementById('admin-notes') as HTMLTextAreaElement)?.value
-                    updateApplicationStatus(selectedApplication.id, 'hold', notes)
+                    const notes = (document.getElementById('admin-notes') as HTMLTextAreaElement)?.value;
+                    updateApplicationStatus(selectedApplication.id, 'hold', notes);
                   }}
                   disabled={updating}
                   className="flex items-center space-x-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
@@ -521,8 +518,8 @@ const ViewApplications: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    const notes = (document.getElementById('admin-notes') as HTMLTextAreaElement)?.value
-                    updateApplicationStatus(selectedApplication.id, 'approved', notes)
+                    const notes = (document.getElementById('admin-notes') as HTMLTextAreaElement)?.value;
+                    updateApplicationStatus(selectedApplication.id, 'approved', notes);
                   }}
                   disabled={updating}
                   className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
@@ -536,7 +533,7 @@ const ViewApplications: React.FC = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default ViewApplications
+export default ViewApplications;
