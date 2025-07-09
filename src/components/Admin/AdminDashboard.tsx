@@ -388,11 +388,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
                 <div key={application.id} className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                   <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+                      <div className="relative">
+                        <Users className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+                        {application.users?.profiles?.is_verified && (
+                          <div className="absolute -top-1 -right-1 w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full border border-white"></div>
+                        )}
+                      </div>
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
-                        {application.users?.profiles?.full_name || 'Unknown Student'}
+                        <div className="flex items-center space-x-1">
+                          <span>{application.users?.profiles?.full_name || 'Unknown Student'}</span>
+                          {application.users?.profiles?.is_verified && (
+                            <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />
+                          )}
+                        </div>
                       </p>
                       <p className="text-xs sm:text-sm text-gray-600 truncate">
                         {application.scholarship_forms?.title || 'Unknown Form'}
