@@ -173,7 +173,7 @@ A digital-first approach that provides:
 - **🎯 PostCSS & Autoprefixer** - CSS processing
 
 ### Cloud Infrastructure
-- **🌐 Wasabi** - Primary file storage (S3-compatible)
+- **🌐 Cloudinary** - Primary file storage and media management
 - **🔒 Supabase** - Database and authentication
 - **📡 Real-time Updates** - Live data synchronization
 
@@ -184,7 +184,7 @@ A digital-first approach that provides:
 ```mermaid
 graph TB
     A[React Frontend] --> B[Supabase Backend]
-    A --> C[Wasabi Storage]
+    A --> C[Cloudinary Storage]
     B --> D[PostgreSQL Database]
     B --> E[Authentication]
     B --> F[Real-time API]
@@ -234,7 +234,7 @@ graph TB
 ### Prerequisites
 - Node.js 18+ and npm
 - Supabase account
-- Wasabi cloud storage account
+- Cloudinary account
 
 ### 1. Clone the Repository
 ```bash
@@ -255,11 +255,9 @@ Create a `.env` file in the root directory:
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Wasabi Configuration
-VITE_WASABI_ENDPOINT=s3.wasabisys.com
-VITE_WASABI_ACCESS_KEY_ID=your_wasabi_access_key
-VITE_WASABI_SECRET_ACCESS_KEY=your_wasabi_secret_key
-VITE_WASABI_BUCKET_NAME=your_bucket_name
+# Cloudinary Configuration
+VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+VITE_CLOUDINARY_UPLOAD_PRESET=student_upload
 ```
 
 ### 4. Database Setup
@@ -300,7 +298,7 @@ Visit `http://localhost:5173` to see the application running!
 - **Row Level Security (RLS)** on all tables
 - **Role-based access control** (Student/Admin)
 - **JWT authentication** with Supabase Auth
-- **Secure file uploads** with signed URLs
+- **Secure file uploads** with Cloudinary
 - **Data validation** at database level
 
 </details>
@@ -327,11 +325,11 @@ The system supports full bilingual functionality:
 3. Configure authentication providers
 4. Set up Row Level Security policies
 
-### Wasabi Setup
-1. Create a Wasabi account
-2. Create a storage bucket
-3. Generate access keys
-4. Configure CORS settings
+### Cloudinary Setup
+1. Create a Cloudinary account
+2. Get your cloud name from the dashboard
+3. Create an unsigned upload preset named 'student_upload'
+4. Configure upload settings and security
 
 ### Environment Variables
 All configuration is handled through environment variables for security and flexibility.
@@ -343,7 +341,7 @@ All configuration is handled through environment variables for security and flex
 - **⚡ Fast Loading** - Optimized with Vite and code splitting
 - **📱 Mobile Responsive** - Works perfectly on all devices
 - **🔄 Real-time Updates** - Live data synchronization
-- **💾 Caching** - Smart data caching for better performance
+- **💾 Caching** - Smart data caching and Cloudinary CDN
 - **🗜️ Optimized Assets** - Compressed images and minified code
 - **🚀 CDN Ready** - Optimized for content delivery networks
 
@@ -437,7 +435,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Open Source Contributors** - For the amazing tools and libraries
 - **Students and Educators** - For their feedback and testing
 - **Supabase Team** - For the excellent backend platform
-- **Wasabi** - For reliable and affordable cloud storage
+- **Cloudinary** - For powerful media management and optimization
 
 ---
 

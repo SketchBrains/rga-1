@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { uploadToCloudinary } from '../../lib/cloudinary'
 import FileLibrary from './FileLibrary'
 import { 
   ArrowLeft,
@@ -22,7 +23,6 @@ import {
   AlignLeft,
   FolderOpen
 } from 'lucide-react'
-import { s3Client, wasabiBucketName, PutObjectCommand, generateFilePath, getWasabiPublicUrl } from '../../lib/wasabi'
 import toast from 'react-hot-toast'
 
 interface ApplicationFormProps {
@@ -97,16 +97,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
   const handleFileUpload = async (fieldId: string, file: File) => {
     try {
-      console.log('Uploading file:', {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        bucket: wasabiBucketName
-      });
-
-      const maxSize = 5 * 1024 * 1024; // 5MB
+      const maxSize = 10 * 1024 * 1024; // 10MB for Cloudinary
       if (file.size > maxSize) {
-        toast.error('File size must be less than 5MB');
+        toast.error('File size must be less than 10MB');
         return;
       }
 
@@ -115,43 +108,20 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         'image/jpeg',
         'image/jpg',
         'image/png',
+        'image/gif',
+        'image/webp',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
       ];
 
       if (!allowedTypes.includes(file.type)) {
-        toast.error('File type not supported. Please upload PDF, DOC, DOCX, or image files.');
+        toast.error('File type not supported. Please upload PDF, DOC, DOCX, images, or text files.');
         return;
       }
 
-      // Convert File to ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      // Upload file to Wasabi
-      const fileExt = file.name.split('.').pop();
-      const fileKey = `${generateFilePath(user?.id || '', 'applications', fieldId)}.${fileExt}`;
-
-      const uploadCommand = new PutObjectCommand({
-        Bucket: wasabiBucketName,
-        Key: fileKey,
-        Body: uint8Array,
-        ContentType: file.type,
-        ACL: 'public-read',
-      });
-
-      await s3Client.send(uploadCommand);
-
-      // Get public URL for Wasabi
-      const publicUrl = getWasabiPublicUrl(fileKey);
-      console.log('Generated Public URL:', publicUrl);
-
-      // Validate public URL format
-      if (!publicUrl.startsWith('https://s3.ap-southeast-1.wasabisys.com/rganyas-uploads/')) {
-        console.error('Invalid public URL:', publicUrl);
-        toast.error('Failed to generate valid file URL');
-        return;
-      }
+      // Upload file to Cloudinary
+      const publicUrl = await uploadToCloudinary(file);
 
       setUploadedFiles((prev) => ({
         ...prev,
@@ -489,7 +459,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
               }}
               className="hidden"
               id={`file-${field.id}`}
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt"
             />
             <label
               htmlFor={`file-${field.id}`}

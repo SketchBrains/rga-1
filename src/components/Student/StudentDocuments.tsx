@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { uploadToCloudinary } from '../../lib/cloudinary';
 import { 
   FileText, 
   Upload, 
@@ -16,7 +17,6 @@ import {
   Search,
   Filter
 } from 'lucide-react';
-import { s3Client, wasabiBucketName, PutObjectCommand, DeleteObjectCommand, generateFilePath, getWasabiPublicUrl, extractKeyFromUrl } from '../../lib/wasabi';
 import toast from 'react-hot-toast';
 
 const StudentDocuments: React.FC = () => {
@@ -74,7 +74,7 @@ const StudentDocuments: React.FC = () => {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 10 * 1024 * 1024; // 10MB for Cloudinary
     
     // Validate file object without instanceof
     if (!file || typeof file !== 'object' || !file.name || !file.type || !file.size) {
@@ -90,7 +90,7 @@ const StudentDocuments: React.FC = () => {
     });
 
     if (file.size > maxSize) {
-      toast.error('File size must be less than 5MB');
+      toast.error('File size must be less than 10MB');
       return;
     }
 
@@ -99,65 +99,25 @@ const StudentDocuments: React.FC = () => {
       'image/jpeg',
       'image/jpg',
       'image/png',
+      'image/gif',
+      'image/webp',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      toast.error('File type not supported. Please upload PDF, DOC, DOCX, or image files.');
+      toast.error('File type not supported. Please upload PDF, DOC, DOCX, images, or text files.');
       return;
     }
 
     setUploadingFiles(prev => [...prev, file.name]);
 
     try {
-      console.log('Uploading file:', {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        bucket: wasabiBucketName,
-      });
+      // Upload file to Cloudinary
+      const publicUrl = await uploadToCloudinary(file);
 
-      // Upload file to Wasabi
-      const fileExt = file.name.split('.').pop();
-      const fileKey = `${generateFilePath(user?.id || '', 'user-uploads')}.${fileExt}`;
-      
-      const uploadCommand = new PutObjectCommand({
-        Bucket: wasabiBucketName,
-        Key: fileKey,
-        Body: file, // Use File object directly
-        ContentType: file.type,
-        ACL: 'public-read', // Attempt to make the file publicly accessible
-      });
-
-      await s3Client.send(uploadCommand);
-
-      // Get public URL for Wasabi (Step 2)
-      const publicUrl = getWasabiPublicUrl(fileKey);
-      console.log('Generated Public URL:', publicUrl);
-
-      // Validate public URL format
-      if (!publicUrl.startsWith('https://s3.ap-southeast-1.wasabisys.com/rganyas-Uploads/')) {
-        console.error('Invalid public URL:', publicUrl);
-        toast.error('Failed to generate valid file URL');
-        return;
-      }
-
-      // Test public access (Step 2 verification)
-      try {
-        const response = await fetch(publicUrl, { method: 'HEAD' });
-        if (!response.ok) {
-          console.error('Public URL is not accessible:', response.status, response.statusText);
-          toast.error('File uploaded but not publicly accessible. Contact Wasabi Support to enable public access.');
-          return;
-        }
-      } catch (error) {
-        console.error('Error verifying public URL:', error);
-        toast.error('File uploaded but not publicly accessible. Check Wasabi bucket settings or contact support.');
-        return;
-      }
-
-      // Save document record to Supabase (Step 3)
+      // Save document record to Supabase
       const { error: insertError } = await supabase
         .from('documents')
         .insert({
@@ -168,7 +128,7 @@ const StudentDocuments: React.FC = () => {
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user?.id,
-          created_at: new Date().toISOString(), // Explicitly set timestamp
+          created_at: new Date().toISOString(),
         });
 
       if (insertError) {
@@ -180,12 +140,8 @@ const StudentDocuments: React.FC = () => {
       toast.success('File uploaded successfully');
       fetchDocuments();
     } catch (error: any) {
-      console.error('Error uploading file to Wasabi:', error);
-      if (error.name === 'AccessDenied') {
-        toast.error('File upload failed: Public access is disabled. Contact Wasabi Support to enable public access.');
-      } else {
-        toast.error('Failed to upload file');
-      }
+      console.error('Error uploading file to Cloudinary:', error);
+      toast.error(error.message || 'Failed to upload file');
     } finally {
       setUploadingFiles(prev => prev.filter(name => name !== file.name));
     }
@@ -195,17 +151,9 @@ const StudentDocuments: React.FC = () => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
     try {
-      // Extract the key from the Wasabi URL
-      const key = extractKeyFromUrl(fileUrl);
-
-      // Delete file from Wasabi
-      const deleteCommand = new DeleteObjectCommand({
-        Bucket: wasabiBucketName,
-        Key: key,
-      });
-      await s3Client.send(deleteCommand);
-
       // Delete document record from Supabase
+      // Note: Cloudinary files can be managed through their dashboard
+      // or you can implement server-side deletion for production
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -429,15 +377,17 @@ const StudentDocuments: React.FC = () => {
             <ul className="space-y-1">
               <li>• PDF documents (.pdf)</li>
               <li>• Word documents (.doc, .docx)</li>
-              <li>• Images (.jpg, .jpeg, .png)</li>
+              <li>• Images (.jpg, .jpeg, .png, .gif, .webp)</li>
+              <li>• Text files (.txt)</li>
             </ul>
           </div>
           <div>
             <h4 className="font-medium text-gray-700 mb-2">{t('requirements')}:</h4>
             <ul className="space-y-1">
-              <li>• Maximum file size: 5MB</li>
+              <li>• Maximum file size: 10MB</li>
               <li>• Clear and readable documents</li>
               <li>• Original or certified copies preferred</li>
+              <li>• Files are stored securely in Cloudinary</li>
             </ul>
           </div>
         </div>
