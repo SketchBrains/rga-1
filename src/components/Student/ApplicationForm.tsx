@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import FileLibrary from './FileLibrary'
 import { 
   ArrowLeft,
   Save,
@@ -18,7 +19,8 @@ import {
   Hash,
   Type,
   List,
-  AlignLeft
+  AlignLeft,
+  FolderOpen
 } from 'lucide-react'
 import { s3Client, wasabiBucketName, PutObjectCommand, generateFilePath, getWasabiPublicUrl } from '../../lib/wasabi'
 import toast from 'react-hot-toast'
@@ -41,6 +43,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
   const [formFields, setFormFields] = useState<any[]>([])
   const [responses, setResponses] = useState<FormResponse>({})
   const [uploadedFiles, setUploadedFiles] = useState<{ [fieldId: string]: string }>({})
+  const [selectedExistingFiles, setSelectedExistingFiles] = useState<{ [fieldId: string]: any }>({})
+  const [showFileLibrary, setShowFileLibrary] = useState(false)
+  const [currentFileFieldId, setCurrentFileFieldId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -159,6 +164,30 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       console.error('Error uploading file to Wasabi:', error);
       toast.error('Failed to upload file');
     }
+  }
+
+  const handleSelectExistingFile = (document: any) => {
+    if (!currentFileFieldId) return
+
+    // Store the selected document metadata
+    setSelectedExistingFiles(prev => ({
+      ...prev,
+      [currentFileFieldId]: document
+    }))
+
+    // Update the response with the file URL
+    handleInputChange(currentFileFieldId, document.file_url)
+
+    // Close the file library
+    setShowFileLibrary(false)
+    setCurrentFileFieldId(null)
+
+    toast.success('File selected from library')
+  }
+
+  const handleOpenFileLibrary = (fieldId: string) => {
+    setCurrentFileFieldId(fieldId)
+    setShowFileLibrary(true)
   }
 
   const validateForm = (): boolean => {
