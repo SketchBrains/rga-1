@@ -17,7 +17,7 @@ if (!cloudinaryCloudName || !cloudinaryUploadPreset) {
   throw new Error('Missing Cloudinary environment variables. Please check your .env file.')
 }
 
-// Cloudinary upload function
+// Cloudinary upload function with proper resource type handling
 export const uploadToCloudinary = async (file: File): Promise<string> => {
   try {
     console.log('📤 Uploading file to Cloudinary:', {
@@ -48,27 +48,28 @@ export const uploadToCloudinary = async (file: File): Promise<string> => {
       throw new Error('File type not supported. Please upload PDF, DOC, DOCX, images, or text files.')
     }
 
+    // Determine resource type based on file type
+    const isImage = file.type.startsWith('image/')
+    const resourceType = isImage ? 'image' : 'raw'
+    
+    console.log(`📁 Using resource type: ${resourceType} for file type: ${file.type}`)
+
     // Create form data for Cloudinary upload
     const formData = new FormData()
     formData.append('file', file)
     formData.append('upload_preset', cloudinaryUploadPreset)
     formData.append('cloud_name', cloudinaryCloudName)
-    
-    // Add resource type based on file type
-    if (file.type.startsWith('image/')) {
-      formData.append('resource_type', 'image')
-    } else {
-      formData.append('resource_type', 'raw') // For documents
-    }
+    formData.append('resource_type', resourceType)
 
-    // Upload to Cloudinary
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/upload`,
-      {
-        method: 'POST',
-        body: formData,
-      }
-    )
+    // Upload to appropriate Cloudinary endpoint based on resource type
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/${resourceType}/upload`
+    
+    console.log(`📡 Uploading to: ${uploadUrl}`)
+
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: formData,
+    })
 
     if (!response.ok) {
       const errorData = await response.json()
@@ -131,7 +132,7 @@ export const extractPublicIdFromUrl = (url: string): string => {
   }
 }
 
-// Generate optimized URL for viewing
+// Generate optimized URL for viewing (only applies to images)
 export const getOptimizedCloudinaryUrl = (originalUrl: string, options: {
   width?: number
   height?: number
@@ -141,7 +142,7 @@ export const getOptimizedCloudinaryUrl = (originalUrl: string, options: {
   try {
     const { width, height, quality = 'auto', format = 'auto' } = options
     
-    // For documents, return original URL
+    // For raw files (documents), return original URL without transformations
     if (originalUrl.includes('/raw/upload/')) {
       return originalUrl
     }

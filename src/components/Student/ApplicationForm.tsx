@@ -121,17 +121,17 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       }
 
       // Upload file to Cloudinary
-      const publicUrl = await uploadToCloudinary(file);
+      const secureUrl = await uploadToCloudinary(file);
 
       setUploadedFiles((prev) => ({
         ...prev,
-        [fieldId]: publicUrl,
+        [fieldId]: secureUrl,
       }));
 
       handleInputChange(fieldId, file);
       toast.success('File uploaded successfully');
     } catch (error) {
-      console.error('Error uploading file to Wasabi:', error);
+      console.error('Error uploading file to Cloudinary:', error);
       toast.error('Failed to upload file');
     }
   }

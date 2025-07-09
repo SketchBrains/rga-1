@@ -115,16 +115,16 @@ const StudentDocuments: React.FC = () => {
 
     try {
       // Upload file to Cloudinary
-      const publicUrl = await uploadToCloudinary(file);
+      const secureUrl = await uploadToCloudinary(file);
 
-      // Save document record to Supabase
+      // Save document record to Supabase with Cloudinary URL
       const { error: insertError } = await supabase
         .from('documents')
         .insert({
           application_id: null, // For standalone uploads
           field_id: null,
           file_name: file.name,
-          file_url: publicUrl,
+          file_url: secureUrl,
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user?.id,

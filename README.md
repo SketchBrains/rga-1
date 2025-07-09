@@ -73,7 +73,7 @@ A digital-first approach that provides:
 <details>
 <summary><strong>📁 Document Management</strong></summary>
 
-- **Cloud Storage**: All documents stored securely on Wasabi
+- **Cloud Storage**: All documents stored securely on Cloudinary
 - **File Organization**: Automatic categorization and tagging
 - **Multiple Formats**: Support for PDF, DOC, DOCX, and images
 - **Download/Preview**: Easy document access and viewing
@@ -164,7 +164,7 @@ A digital-first approach that provides:
   - Real-time subscriptions
   - Row Level Security (RLS)
   - Authentication & authorization
-- **☁️ Wasabi Cloud Storage** - S3-compatible object storage
+- **☁️ Cloudinary** - Cloud-based media management and optimization
 - **🔐 JWT Authentication** - Secure user authentication
 
 ### Development Tools
