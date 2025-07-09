@@ -287,10 +287,23 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         uploaded_by: user.id
       }))
 
-      if (filesToSave.length > 0) {
+      // Add selected existing files to the documents table (create new references)
+      const existingFilesToSave = Object.entries(selectedExistingFiles).map(([fieldId, document]) => ({
+        application_id: application.id,
+        field_id: fieldId,
+        file_name: document.file_name,
+        file_url: document.file_url,
+        file_type: document.file_type,
+        file_size: document.file_size,
+        uploaded_by: user.id
+      }))
+
+      const allFilesToSave = [...filesToSave, ...existingFilesToSave]
+
+      if (allFilesToSave.length > 0) {
         const { error: fileError } = await supabase
           .from('documents')
-          .insert(filesToSave)
+          .insert(allFilesToSave)
 
         if (fileError) {
           console.error('Supabase document insert error:', fileError);
@@ -368,10 +381,23 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         uploaded_by: user.id
       }))
 
-      if (filesToSave.length > 0) {
+      // Add selected existing files to the documents table (create new references)
+      const existingFilesToSave = Object.entries(selectedExistingFiles).map(([fieldId, document]) => ({
+        application_id: application.id,
+        field_id: fieldId,
+        file_name: document.file_name,
+        file_url: document.file_url,
+        file_type: document.file_type,
+        file_size: document.file_size,
+        uploaded_by: user.id
+      }))
+
+      const allFilesToSave = [...filesToSave, ...existingFilesToSave]
+
+      if (allFilesToSave.length > 0) {
         const { error: fileError } = await supabase
           .from('documents')
-          .insert(filesToSave)
+          .insert(allFilesToSave)
 
         if (fileError) {
           console.error('Supabase document insert error:', fileError);
