@@ -73,7 +73,7 @@ const ViewApplications: React.FC = () => {
           scholarship_forms (title, education_level),
           users (
             email,
-            profiles (full_name, phone)
+            profiles (full_name, phone, is_verified)
           )
         `)
         .order('submitted_at', { ascending: false })
@@ -161,6 +161,13 @@ const ViewApplications: React.FC = () => {
   const updateApplicationStatus = async (applicationId: string, status: string, notes?: string) => {
     try {
       setUpdating(true)
+      
+      // Get the application details to find the student
+      const currentApplication = applications.find(app => app.id === applicationId)
+      if (!currentApplication) {
+        throw new Error('Application not found')
+      }
+      
       const { error } = await supabase
         .from('applications')
         .update({
@@ -173,9 +180,28 @@ const ViewApplications: React.FC = () => {
         .eq('id', applicationId)
 
       if (error) throw error
+      
+      // If application is approved, mark the student as verified
+      if (status === 'approved') {
+        console.log('🎉 Application approved, marking student as verified...')
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            is_verified: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', currentApplication.student_id)
+        
+        if (profileError) {
+          console.error('❌ Error updating profile verification:', profileError)
+          // Don't throw error here as the main application update succeeded
+        } else {
+          console.log('✅ Student profile marked as verified')
+        }
+      }
 
       toast.success(`Application ${status} successfully`)
-      fetchApplications()
+      await fetchApplications()
       setSelectedApplication(null)
     } catch (error) {
       console.error('Error updating application:', error)

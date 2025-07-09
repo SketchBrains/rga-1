@@ -351,7 +351,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       }
 
       toast.success('Application submitted successfully!')
-      fetchApplications() // Refresh applications
+      await fetchApplications() // Refresh applications
       onSuccess()
     } catch (error) {
       console.error('Error submitting application:', error)

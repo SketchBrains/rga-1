@@ -138,7 +138,8 @@ const StudentDocuments: React.FC = () => {
       }
 
       toast.success('File uploaded successfully');
-      fetchDocuments();
+      // Refresh documents immediately after successful upload
+      await fetchDocuments();
     } catch (error: any) {
       console.error('Error uploading file to Cloudinary:', error);
       toast.error(error.message || 'Failed to upload file');
