@@ -286,7 +286,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: user.email,
               profiles: profile ? { 
                 full_name: profile.full_name,
-                phone: profile.phone 
+                phone: profile.phone,
+                is_verified: profile.is_verified
               } : null
             } : null
           }

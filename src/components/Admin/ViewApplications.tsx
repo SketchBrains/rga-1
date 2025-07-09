@@ -386,7 +386,15 @@ const ViewApplications: React.FC = () => {
       {selectedApplication && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <p className="text-gray-900">{selectedApplication.users?.profiles?.full_name}</p>
+                    {selectedApplication.users?.profiles?.is_verified && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Verified Student
+                      </span>
+                    )}
+                  </div>
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
