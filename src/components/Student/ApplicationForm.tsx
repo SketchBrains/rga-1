@@ -21,6 +21,7 @@ import {
   AlignLeft
 } from 'lucide-react'
 import { s3Client, wasabiBucketName, PutObjectCommand, generateFilePath, getWasabiPublicUrl } from '../../lib/wasabi'
+import FileLibrary from './FileLibrary'
 import toast from 'react-hot-toast'
 
 interface ApplicationFormProps {
@@ -45,6 +46,8 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
   const [submitting, setSubmitting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<{ [fieldId: string]: string }>({})
+  const [showFileLibrary, setShowFileLibrary] = useState<string | null>(null)
+  const [uploadingField, setUploadingField] = useState<string | null>(null)
 
   useEffect(() => {
     fetchFormFields()
@@ -92,6 +95,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
   const handleFileUpload = async (fieldId: string, file: File) => {
     try {
+      console.log('📤 Starting file upload for field:', fieldId, 'File:', file.name)
+      setUploadingField(fieldId)
+      
       const maxSize = 5 * 1024 * 1024 // 5MB
       
       if (file.size > maxSize) {
@@ -113,9 +119,13 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         return
       }
 
+      console.log('✅ File validation passed, uploading to Wasabi...')
+      
       // Upload file to Wasabi
       const fileExt = file.name.split('.').pop()
       const fileKey = `${generateFilePath(user?.id || '', 'applications', fieldId)}.${fileExt}`
+      
+      console.log('📁 Generated file key:', fileKey)
       
       const uploadCommand = new PutObjectCommand({
         Bucket: wasabiBucketName,
@@ -125,7 +135,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         ACL: 'public-read', // Make the file publicly accessible
       })
 
+      console.log('☁️ Sending upload command to Wasabi...')
       await s3Client.send(uploadCommand)
+      console.log('✅ File uploaded to Wasabi successfully')
 
       // Get public URL for Wasabi
       const publicUrl = getWasabiPublicUrl(fileKey)
@@ -137,10 +149,55 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
       handleInputChange(fieldId, file)
       toast.success('File uploaded successfully')
+      
+      console.log('✅ File upload completed successfully:', publicUrl)
     } catch (error) {
-      console.error('Error uploading file to Wasabi:', error)
-      toast.error('Failed to upload file')
+      console.error('❌ Error uploading file to Wasabi:', error)
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        stack: error.stack
+      })
+      
+      let errorMessage = 'Failed to upload file'
+      if (error.message) {
+        if (error.message.includes('NetworkingError') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.'
+        } else if (error.message.includes('AccessDenied')) {
+          errorMessage = 'Access denied. Please check Wasabi credentials.'
+        } else if (error.message.includes('NoSuchBucket')) {
+          errorMessage = 'Storage bucket not found. Please contact support.'
+        } else {
+          errorMessage = `Upload failed: ${error.message}`
+        }
+      }
+      
+      toast.error(errorMessage)
+    } finally {
+      setUploadingField(null)
     }
+  }
+
+  const handleFileFromLibrary = (fieldId: string, file: any) => {
+    console.log('📚 Selected file from library:', file.file_name, 'for field:', fieldId)
+    
+    // Create a File-like object from the library file
+    const libraryFile = {
+      name: file.file_name,
+      type: file.file_type,
+      size: file.file_size
+    }
+    
+    // Set the uploaded file URL and response
+    setUploadedFiles(prev => ({
+      ...prev,
+      [fieldId]: file.file_url
+    }))
+    
+    handleInputChange(fieldId, libraryFile)
+    setShowFileLibrary(null)
+    toast.success('File selected from library')
   }
 
   const validateForm = (): boolean => {
@@ -412,29 +469,194 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       case 'file':
         return (
           <div>
-            <input
-              type="file"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  handleFileUpload(field.id, file)
-                }
-              }}
-              className="hidden"
-              id={`file-${field.id}`}
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            />
-            <label
-              htmlFor={`file-${field.id}`}
-              className={`flex items-center justify-center space-x-2 px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                error ? 'border-red-500' : 'border-gray-300'
-              }`}
+            <div className="space-y-3">
+              {/* Upload Options */}
+              <div className="flex space-x-2">
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleFileUpload(field.id, file)
+                      }
+                    }}
+                    className="hidden"
+                    id={`file-${field.id}`}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    disabled={uploadingField === field.id}
+                  />
+                  <label
+                    htmlFor={`file-${field.id}`}
+                    className={`flex items-center justify-center space-x-2 px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                      error ? 'border-red-500' : 'border-gray-300'
+                    } ${uploadingField === field.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {uploadingField === field.id ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-gray-600">Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-gray-400" />
+                        <span className="text-gray-600">
+                          {uploadedFiles[field.id] ? 'Change file' : 'Browse files'}
+                        </span>
+                      </>
+                    )}
+                  </label>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowFileLibrary(field.id)}
+                  disabled={uploadingField === field.id}
+                  className="px-4 py-2 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Library
+                </button>
+              </div>
+              
+              {/* Upload Status */}
+              {uploadedFiles[field.id] && (
+                <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 p-2 rounded">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>File uploaded successfully</span>
+                  <a
+                    href={uploadedFiles[field.id]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline ml-2"
+                  >
+                    View
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+
+      default:
+        return (
+          <input
+            type="text"
+            value={value as string}
+            onChange={(e) => handleInputChange(field.id, e.target.value)}
+            className={baseInputClasses}
+            placeholder={`Enter ${fieldLabel.toLowerCase()}`}
+          />
+        )
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title
+  const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* File Library Modal */}
+      {showFileLibrary && (
+        <FileLibrary
+          onSelectFile={(file) => handleFileFromLibrary(showFileLibrary, file)}
+          onClose={() => setShowFileLibrary(null)}
+        />
+      )}
+
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={onBack}
+            className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back to Applications</span>
+          </button>
+        </div>
+        
+        <div className="text-center">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{title}</h1>
+          <p className="text-gray-600 mb-4">{form.education_level}</p>
+          {description && (
+            <p className="text-gray-700 max-w-2xl mx-auto">{description}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="space-y-6">
+          {formFields.map((field, index) => {
+            const fieldLabel = language === 'hindi' && field.field_label_hindi 
+              ? field.field_label_hindi 
+              : field.field_label
+            const error = errors[field.id]
+
+            return (
+              <div key={field.id} className="space-y-2">
+                <label className="flex items-center space-x-2 text-sm font-medium text-gray-700">
+                  {getFieldIcon(field.field_type)}
+                  <span>
+                    {fieldLabel}
+                    {field.is_required && <span className="text-red-500 ml-1">*</span>}
+                  </span>
+                </label>
+                
+                {renderField(field)}
+                
+                {error && (
+                  <div className="flex items-center space-x-2 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{error}</span>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4 mt-8 pt-6 border-t border-gray-200">
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <AlertCircle className="w-4 h-4" />
+            <span>All fields marked with * are required</span>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+            <button
+              onClick={saveAsDraft}
+              disabled={saving || submitting}
+              className="flex items-center justify-center space-x-2 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Upload className="w-5 h-5 text-gray-400" />
-              <span className="text-gray-600">
-                {uploadedFiles[field.id] ? 'File uploaded' : `Upload ${fieldLabel.toLowerCase()}`}
-              </span>
-            </label>
+              <Save className="w-4 h-4" />
+              <span>{saving ? 'Saving...' : 'Save as Draft'}</span>
+            </button>
+            
+            <button
+              onClick={submitApplication}
+              disabled={saving || submitting}
+              className="flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-emerald-600 text-white rounded-lg hover:from-blue-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            >
+              <Send className="w-4 h-4" />
+              <span>{submitting ? 'Submitting...' : 'Submit Application'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default ApplicationForm
             {uploadedFiles[field.id] && (
               <div className="mt-2 flex items-center space-x-2 text-sm text-green-600">
                 <CheckCircle className="w-4 h-4" />
