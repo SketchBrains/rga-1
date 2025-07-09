@@ -287,23 +287,10 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         uploaded_by: user.id
       }))
 
-      // Add selected existing files to the documents table (create new references)
-      const existingFilesToSave = Object.entries(selectedExistingFiles).map(([fieldId, document]) => ({
-        application_id: application.id,
-        field_id: fieldId,
-        file_name: document.file_name,
-        file_url: document.file_url,
-        file_type: document.file_type,
-        file_size: document.file_size,
-        uploaded_by: user.id
-      }))
-
-      const allFilesToSave = [...filesToSave, ...existingFilesToSave]
-
-      if (allFilesToSave.length > 0) {
+      if (filesToSave.length > 0) {
         const { error: fileError } = await supabase
           .from('documents')
-          .insert(allFilesToSave)
+          .insert(filesToSave)
 
         if (fileError) {
           console.error('Supabase document insert error:', fileError);
@@ -381,23 +368,10 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         uploaded_by: user.id
       }))
 
-      // Add selected existing files to the documents table (create new references)
-      const existingFilesToSave = Object.entries(selectedExistingFiles).map(([fieldId, document]) => ({
-        application_id: application.id,
-        field_id: fieldId,
-        file_name: document.file_name,
-        file_url: document.file_url,
-        file_type: document.file_type,
-        file_size: document.file_size,
-        uploaded_by: user.id
-      }))
-
-      const allFilesToSave = [...filesToSave, ...existingFilesToSave]
-
-      if (allFilesToSave.length > 0) {
+      if (filesToSave.length > 0) {
         const { error: fileError } = await supabase
           .from('documents')
-          .insert(allFilesToSave)
+          .insert(filesToSave)
 
         if (fileError) {
           console.error('Supabase document insert error:', fileError);
@@ -644,6 +618,17 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
           </div>
         </div>
       </div>
+
+      {/* File Library Modal */}
+      {showFileLibrary && (
+        <FileLibrary
+          onSelectFile={handleSelectExistingFile}
+          onClose={() => {
+            setShowFileLibrary(false)
+            setCurrentFileFieldId(null)
+          }}
+        />
+      )}
     </div>
   )
 }
