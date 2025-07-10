@@ -104,31 +104,31 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
 
   const testimonials = [
     {
-      name: 'Priya Sharma',
-      nameHindi: 'प्रिया शर्मा',
-      course: 'B.Tech Computer Science',
-      courseHindi: 'बी.टेक कंप्यूटर साइंस',
-      text: 'RGA scholarship helped me pursue my engineering dreams. The support was not just financial but also emotional.',
-      textHindi: 'आरजीए छात्रवृत्ति ने मुझे अपने इंजीनियरिंग के सपनों को पूरा करने में मदद की। सहायता केवल वित्तीय नहीं बल्कि भावनात्मक भी थी।',
-      image: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
+      name: 'Student Name',
+      nameHindi: 'छात्र का नाम',
+      course: 'Course Opted',
+      courseHindi: 'पाठ्यक्रम चुना',
+      text: 'Testimonial text goes here. This is a sample testimonial to showcase the scholarship impact.',
+      textHindi: 'छात्रवृत्ति के प्रभाव को प्रदर्शित करने के लिए यह एक नमूना प्रशंसापत्र है।',
+      image: 'image_url_here'
     },
     {
-      name: 'Rahul Gupta',
-      nameHindi: 'राहुल गुप्ता',
-      course: 'MBBS',
-      courseHindi: 'एमबीबीएस',
-      text: 'Thanks to RGA, I could focus on my studies without worrying about financial constraints.',
-      textHindi: 'आरजीए के कारण, मैं वित्तीय बाधाओं की चिंता किए बिना अपनी पढ़ाई पर ध्यान दे सका।',
-      image: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
+      name: 'Student Name',
+      nameHindi: 'छात्र का नाम',
+      course: 'Course Opted',
+      courseHindi: 'पाठ्यक्रम चुना',
+      text: 'Testimonial text goes here. This is a sample testimonial to showcase the scholarship impact.',
+      textHindi: 'छात्रवृत्ति के प्रभाव को प्रदर्शित करने के लिए यह एक नमूना प्रशंसापत्र है।',
+      image: 'image_url_here'
     },
     {
-      name: 'Anita Patel',
-      nameHindi: 'अनीता पटेल',
-      course: 'CA Final',
-      courseHindi: 'सीए फाइनल',
-      text: 'The scholarship program is transparent and truly helps deserving students achieve their goals.',
-      textHindi: 'छात्रवृत्ति कार्यक्रम पारदर्शी है और वास्तव में योग्य छात्रों को अपने लक्ष्य हासिल करने में मदद करता है।',
-      image: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
+      name: 'Student Name',
+      nameHindi: 'छात्र का नाम',
+      course: 'Course Opted',
+      courseHindi: 'पाठ्यक्रम चुना',
+      text: 'Testimonial text goes here. This is a sample testimonial to showcase the scholarship impact.',
+      textHindi: 'छात्रवृत्ति के प्रभाव को प्रदर्शित करने के लिए यह एक नमूना प्रशंसापत्र है।',
+      image: 'image_url_here'
     }
   ];
 
@@ -141,7 +141,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             {/* Logo and Title */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg">
-                <img src="../images/RGA_logo_bgr.png" alt="RGA Logo" className="w-full h-full object-contain" />
+                <img src="src\components\images\Logo.jpg" alt="RGA Logo" className="w-full h-full object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-sm sm:text-lg font-bold text-gray-900">
@@ -590,7 +590,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             <div className="col-span-1 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg">
-                  <img src="../images/RGA_logo_bgr.png" alt="RGA Logo" className="w-full h-full object-contain" />
+                  <img src="src\components\images\Logo.jpg" alt="RGA Logo" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base">

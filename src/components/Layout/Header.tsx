@@ -35,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             {/* Logo and Title */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-lg">
-                <img src="../images/RGA_logo_bgr.png" alt="Logo" />
+                <img src="src\components\images\Logo.jpg" alt="Logo" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-sm sm:text-lg font-semibold text-gray-900">
