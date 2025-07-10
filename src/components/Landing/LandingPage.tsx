@@ -141,7 +141,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             {/* Logo and Title */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg">
-                <img src="src\components\images\Logo.jpg" alt="RGA Logo" className="w-full h-full object-contain" />
+                <img src="https://res.cloudinary.com/dqqjonji8/image/upload/v1752142364/Black_and_White_Circular_Art_Design_Logo_irfozi.jpg" alt="RGA Logo" className="w-full h-full object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-sm sm:text-lg font-bold text-gray-900">
@@ -590,7 +590,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             <div className="col-span-1 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg">
-                  <img src="src\components\images\Logo.jpg" alt="RGA Logo" className="w-full h-full object-contain" />
+                  <img src="https://res.cloudinary.com/dqqjonji8/image/upload/v1752142364/Black_and_White_Circular_Art_Design_Logo_irfozi.jpg" alt="RGA Logo" className="w-full h-full object-contain" />
+                  
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base">
