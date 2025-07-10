@@ -1,5 +1,5 @@
-import React from 'react'
-import { useLanguage } from '../../contexts/LanguageContext'
+import React from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   BookOpen, 
   Users, 
@@ -21,28 +21,28 @@ import {
   FileText,
   Menu,
   X
-} from 'lucide-react'
-import { useState } from 'react'
+} from 'lucide-react';
+import { useState } from 'react';
 
 interface LandingPageProps {
-  onShowAuth: () => void
+  onShowAuth: () => void;
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
-  const { language, setLanguage, t } = useLanguage()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { language, setLanguage, t } = useLanguage();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLanguageToggle = () => {
-    const newLanguage = language === 'english' ? 'hindi' : 'english'
-    setLanguage(newLanguage)
-  }
+    const newLanguage = language === 'english' ? 'hindi' : 'english';
+    setLanguage(newLanguage);
+  };
 
   const stats = [
-    { number: '5000+', label: 'Students Helped', labelHindi: 'छात्रों की सहायता' },
-    { number: '₹2Cr+', label: 'Scholarships Distributed', labelHindi: 'छात्रवृत्ति वितरित' },
-    { number: '15+', label: 'Years of Service', labelHindi: 'सेवा के वर्ष' },
+    { number: '5,879', label: 'Students Helped', labelHindi: 'छात्रों की सहायता' },
+    { number: '₹396.68 Lakhs', label: 'Scholarships Distributed', labelHindi: 'छात्रवृत्ति वितरित' },
+    { number: '13+', label: 'Years of Service', labelHindi: 'सेवा के वर्ष' },
     { number: '50+', label: 'Educational Institutions', labelHindi: 'शैक्षणिक संस्थान' }
-  ]
+  ];
 
   const features = [
     {
@@ -73,7 +73,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
       description: 'Building a strong network of educated professionals',
       descriptionHindi: 'शिक्षित पेशेवरों का एक मजबूत नेटवर्क बनाना'
     }
-  ]
+  ];
 
   const scholarshipTypes = [
     {
@@ -100,7 +100,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
       amount: '₹50,000 - ₹1,00,000',
       icon: Award
     }
-  ]
+  ];
 
   const testimonials = [
     {
@@ -130,7 +130,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
       textHindi: 'छात्रवृत्ति कार्यक्रम पारदर्शी है और वास्तव में योग्य छात्रों को अपने लक्ष्य हासिल करने में मदद करता है।',
       image: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
     }
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-white">
@@ -141,7 +141,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             {/* Logo and Title */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg">
-                <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                <img src="../images/RGA_logo_bgr.png" alt="RGA Logo" className="w-full h-full object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-sm sm:text-lg font-bold text-gray-900">
@@ -275,7 +275,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
               <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 leading-relaxed">
                 {language === 'hindi' 
                   ? 'राजस्थानी स्नातक संघ स्वर्ण जयंती शिक्षा न्यास योग्य छात्रों को गुणवत्तापूर्ण शिक्षा प्रदान करने के लिए प्रतिबद्ध है। हमारा मिशन है शिक्षा के माध्यम से समाज का कल्याण।'
-                  : 'RGA Swarna Jayanti Shiksha Nyas is committed to providing quality education to deserving students. Our mission is to transform society through education and create opportunities for all.'}
+                  : 'RGA Swarna Jayanti Shiksha Nyas, established in 1961, is committed to providing quality education to deserving students. Our mission is to transform society through education and create opportunities for all.'}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button
@@ -333,14 +333,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             </h2>
             <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
               {language === 'hindi' 
-                ? 'शिक्षा के क्षेत्र में 15 वर्षों से अधिक का अनुभव और हजारों छात्रों की सफलता की कहानी'
-                : 'Over 15 years of experience in education sector with thousands of success stories'}
+                ? 'राजस्थानी स्नातक संघ स्वर्ण जयंती शिक्षा न्यास, 1961 में स्थापित, पिछले 13 वर्षों से 5,879 छात्रों को ₹396.68 लाख की छात्रवृत्ति वितरित की है।'
+                : 'RGA Swarna Jayanti Shiksha Nyas, established in 1961, has distributed ₹396.68 lakhs in scholarships to 5,879 students over the past 13 years.'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             {features.map((feature, index) => {
-              const Icon = feature.icon
+              const Icon = feature.icon;
               return (
                 <div key={index} className="bg-white rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg flex items-center justify-center mb-4">
@@ -353,7 +353,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                     {language === 'hindi' ? feature.descriptionHindi : feature.description}
                   </p>
                 </div>
-              )
+              );
             })}
           </div>
         </div>
@@ -375,7 +375,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {scholarshipTypes.map((scholarship, index) => {
-              const Icon = scholarship.icon
+              const Icon = scholarship.icon;
               return (
                 <div key={index} className="bg-gradient-to-br from-blue-50 to-emerald-50 rounded-xl p-6 sm:p-8 border border-blue-100 hover:shadow-lg transition-shadow">
                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
@@ -395,7 +395,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                     {language === 'hindi' ? 'आवेदन करें' : 'Apply Now'}
                   </button>
                 </div>
-              )
+              );
             })}
           </div>
         </div>
@@ -450,7 +450,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                 icon: CheckCircle
               }
             ].map((process, index) => {
-              const Icon = process.icon
+              const Icon = process.icon;
               return (
                 <div key={index} className="text-center">
                   <div className="relative mb-4 sm:mb-6">
@@ -468,7 +468,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                     {language === 'hindi' ? process.descriptionHindi : process.description}
                   </p>
                 </div>
-              )
+              );
             })}
           </div>
         </div>
@@ -543,7 +543,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                 {language === 'hindi' ? 'ईमेल' : 'Email'}
               </h3>
               <p className="opacity-90 text-sm sm:text-base">info@rgashiksha.org</p>
-              <p className="opacity-90 text-sm sm:text-base">scholarships@rgashiksha.org</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -552,8 +551,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
               <h3 className="text-lg sm:text-xl font-semibold mb-2">
                 {language === 'hindi' ? 'फोन' : 'Phone'}
               </h3>
-              <p className="opacity-90 text-sm sm:text-base">+91 98765 43210</p>
-              <p className="opacity-90 text-sm sm:text-base">+91 87654 32109</p>
+              <p className="opacity-90 text-sm sm:text-base">+91 80198 10957</p>
+              <p className="opacity-90 text-sm sm:text-base">+91 99637 99006</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -564,9 +563,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
               </h3>
               <p className="opacity-90 text-sm sm:text-base">
                 {language === 'hindi' 
-                  ? 'आरजीए भवन, शिक्षा मार्ग, जयपुर, राजस्थान - 302001'
-                  : 'RGA Bhawan, Shiksha Marg, Jaipur, Rajasthan - 302001'}
+                  ? 'स्नातक भवन / आरजीए हॉल, 1st फ्लोर, 5-4-790/1, नजदीक इस्कॉन मंदिर, अबीड़्स, हैदराबाद, तेलंगाना - 500001'
+                  : 'Snatak Bhavan / RGA Hall, 1st Floor, 5-4-790/1, Near Iskcon Temple, Abids, Hyderabad, Telangana - 500001'}
               </p>
+              <a href="https://maps.app.goo.gl/jyHm8DXNpcAzNxes6" target="_blank" rel="noopener noreferrer" className="opacity-90 text-sm sm:text-base text-blue-200 hover:underline mt-1 block">
+                {language === 'hindi' ? 'मानचित्र पर देखें' : 'View on Map'}
+              </a>
             </div>
           </div>
 
@@ -588,7 +590,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
             <div className="col-span-1 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-emerald-600 rounded-lg">
-                  <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                  <img src="../images/RGA_logo_bgr.png" alt="RGA Logo" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base">
@@ -643,22 +645,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onShowAuth }) => {
                 </li>
                 <li className="flex items-center space-x-2">
                   <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span>+91 98765 43210</span>
+                  <span>+91 80198 10957</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span>{language === 'hindi' ? 'जयपुर, राजस्थान' : 'Jaipur, Rajasthan'}</span>
+                  <span>{language === 'hindi' ? 'हैदराबाद, तेलंगाना' : 'Hyderabad, Telangana'}</span>
                 </li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-6 sm:mt-8 pt-6 sm:pt-8 text-center text-gray-400 text-sm sm:text-base">
-            <p>&copy; 2024 RGA Swarna Jayanti Shiksha Nyas. {language === 'hindi' ? 'सभी अधिकार सुरक्षित।' : 'All rights reserved.'}</p>
+            <p>© 2025 RGA Swarna Jayanti Shiksha Nyas. {language === 'hindi' ? 'सभी अधिकार सुरक्षित।' : 'All rights reserved.'}</p>
           </div>
         </div>
       </footer>
     </div>
-  )
-}
+  );
+};
 
-export default LandingPage
+export default LandingPage;
