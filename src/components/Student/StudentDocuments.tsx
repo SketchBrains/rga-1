@@ -102,7 +102,6 @@ const StudentDocuments: React.FC = () => {
           field_id: null,
           file_name: file.name,
           file_url: fileUrl,
-          file_key: fileKey, // Store the Wasabi file key for future operations
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user?.id,
@@ -130,11 +129,13 @@ const StudentDocuments: React.FC = () => {
     try {
       let viewUrl: string;
       
-      if (document.file_key) {
-        // Generate signed URL for viewing
-        viewUrl = await generateSignedUrl(document.file_key, 3600); // 1 hour expiry
-      } else {
-        // Fallback to direct URL (for older documents)
+      try {
+        // Extract file key from Wasabi URL and generate signed URL
+        const fileKey = extractFileKeyFromUrl(document.file_url);
+        viewUrl = await generateSignedUrl(fileKey, 3600); // 1 hour expiry
+      } catch (extractError) {
+        console.warn('Could not extract file key from URL, using direct URL:', extractError);
+        // Fallback to direct URL (for older documents or non-Wasabi URLs)
         viewUrl = document.file_url;
       }
       
@@ -149,11 +150,13 @@ const StudentDocuments: React.FC = () => {
     try {
       let downloadUrl: string;
       
-      if (document.file_key) {
-        // Generate signed URL for downloading with proper headers
-        downloadUrl = await generateDownloadUrl(document.file_key, document.file_name, 3600);
-      } else {
-        // Fallback to direct URL (for older documents)
+      try {
+        // Extract file key from Wasabi URL and generate download URL
+        const fileKey = extractFileKeyFromUrl(document.file_url);
+        downloadUrl = await generateDownloadUrl(fileKey, document.file_name, 3600);
+      } catch (extractError) {
+        console.warn('Could not extract file key from URL, using direct URL:', extractError);
+        // Fallback to direct URL (for older documents or non-Wasabi URLs)
         downloadUrl = document.file_url;
       }
       
@@ -172,24 +175,19 @@ const StudentDocuments: React.FC = () => {
     }
   };
 
-  const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string, fileKey?: string) => {
+  const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
     try {
-      // Delete from Wasabi if we have the file key
-      if (fileKey) {
+      // Try to extract file key from URL and delete from Wasabi
+      try {
+        const fileKey = extractFileKeyFromUrl(fileUrl);
         const deleted = await deleteFromWasabi(fileKey);
         if (!deleted) {
           console.warn('Failed to delete file from Wasabi, but continuing with database deletion');
         }
-      } else {
-        // Try to extract file key from URL for older documents
-        try {
-          const extractedKey = extractFileKeyFromUrl(fileUrl);
-          await deleteFromWasabi(extractedKey);
-        } catch (extractError) {
-          console.warn('Could not extract file key from URL, skipping Wasabi deletion');
-        }
+      } catch (extractError) {
+        console.warn('Could not extract file key from URL, skipping Wasabi deletion:', extractError);
       }
 
       // Delete document record from Supabase
@@ -347,6 +345,7 @@ const StudentDocuments: React.FC = () => {
                 </div>
                 <button
                   onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url, document.file_key)}
+                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url)}
                   className="p-1 text-red-500 hover:text-red-700"
                   title={t('delete_document')}
                 >
