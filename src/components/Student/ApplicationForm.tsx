@@ -252,7 +252,6 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         field_id: fieldId,
         file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
         file_url: fileUrl,
-        file_key: null, // Will be populated if we store the key separately
         file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
         file_size: (responses[fieldId] as File)?.size || 0,
         uploaded_by: user.id
@@ -334,7 +333,6 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         field_id: fieldId,
         file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
         file_url: fileUrl,
-        file_key: null, // Will be populated if we store the key separately
         file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
         file_size: (responses[fieldId] as File)?.size || 0,
         uploaded_by: user.id

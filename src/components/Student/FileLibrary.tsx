@@ -265,7 +265,19 @@ const FileLibrary: React.FC<FileLibraryProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        window.open(document.file_url, '_blank')
+                        // Generate signed URL for viewing
+                        const handleView = async () => {
+                          try {
+                            const { generateSignedUrl, extractFileKeyFromUrl } = await import('../../lib/wasabi')
+                            const fileKey = extractFileKeyFromUrl(document.file_url)
+                            const viewUrl = await generateSignedUrl(fileKey, 3600)
+                            window.open(viewUrl, '_blank')
+                          } catch (error) {
+                            console.warn('Could not generate signed URL, using direct URL:', error)
+                            window.open(document.file_url, '_blank')
+                          }
+                        }
+                        handleView()
                       }}
                       className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 transition-colors"
                     >
@@ -275,12 +287,29 @@ const FileLibrary: React.FC<FileLibraryProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        const link = document.createElement('a')
-                        link.href = document.file_url
-                        link.download = document.file_name
-                        document.body.appendChild(link)
-                        link.click()
-                        document.body.removeChild(link)
+                        // Generate signed download URL
+                        const handleDownload = async () => {
+                          try {
+                            const { generateDownloadUrl, extractFileKeyFromUrl } = await import('../../lib/wasabi')
+                            const fileKey = extractFileKeyFromUrl(document.file_url)
+                            const downloadUrl = await generateDownloadUrl(fileKey, document.file_name, 3600)
+                            const link = document.createElement('a')
+                            link.href = downloadUrl
+                            link.download = document.file_name
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          } catch (error) {
+                            console.warn('Could not generate download URL, using direct URL:', error)
+                            const link = document.createElement('a')
+                            link.href = document.file_url
+                            link.download = document.file_name
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          }
+                        }
+                        handleDownload()
                       }}
                       className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 transition-colors"
                     >
