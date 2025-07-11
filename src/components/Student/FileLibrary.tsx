@@ -262,25 +262,31 @@ const FileLibrary: React.FC<FileLibraryProps> = ({
 
                   {/* Quick Actions */}
                   <div className="flex space-x-2">
-                    <a
-                      href={document.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(document.file_url, '_blank')
+                      }}
                       className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 transition-colors"
                     >
                       <Eye className="w-3 h-3" />
                       <span>View</span>
-                    </a>
-                    <a
-                      href={document.file_url}
-                      download={document.file_name}
-                      onClick={(e) => e.stopPropagation()}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const link = document.createElement('a')
+                        link.href = document.file_url
+                        link.download = document.file_name
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      }}
                       className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 transition-colors"
                     >
                       <Download className="w-3 h-3" />
                       <span>Download</span>
-                    </a>
+                    </button>
                   </div>
                 </div>
               ))}

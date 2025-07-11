@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { uploadToCloudinary } from '../../lib/cloudinary'
+import { uploadToWasabi } from '../../lib/wasabi'
 import FileLibrary from './FileLibrary'
 import { 
   ArrowLeft,
@@ -97,9 +97,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
   const handleFileUpload = async (fieldId: string, file: File) => {
     try {
-      const maxSize = 10 * 1024 * 1024; // 10MB for Cloudinary
+      const maxSize = 50 * 1024 * 1024; // 50MB for Wasabi
       if (file.size > maxSize) {
-        toast.error('File size must be less than 10MB');
+        toast.error('File size must be less than 50MB');
         return;
       }
 
@@ -120,18 +120,18 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         return;
       }
 
-      // Upload file to Cloudinary
-      const secureUrl = await uploadToCloudinary(file);
+      // Upload file to Wasabi
+      const { fileUrl, fileKey } = await uploadToWasabi(file, user?.id || '');
 
       setUploadedFiles((prev) => ({
         ...prev,
-        [fieldId]: secureUrl,
+        [fieldId]: fileUrl,
       }));
 
       handleInputChange(fieldId, file);
       toast.success('File uploaded successfully');
     } catch (error) {
-      console.error('Error uploading file to Cloudinary:', error);
+      console.error('Error uploading file to Wasabi:', error);
       toast.error('Failed to upload file');
     }
   }
@@ -252,6 +252,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         field_id: fieldId,
         file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
         file_url: fileUrl,
+        file_key: null, // Will be populated if we store the key separately
         file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
         file_size: (responses[fieldId] as File)?.size || 0,
         uploaded_by: user.id
@@ -333,6 +334,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         field_id: fieldId,
         file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
         file_url: fileUrl,
+        file_key: null, // Will be populated if we store the key separately
         file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
         file_size: (responses[fieldId] as File)?.size || 0,
         uploaded_by: user.id
