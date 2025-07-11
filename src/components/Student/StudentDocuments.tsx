@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { uploadToCloudinary } from '../../lib/cloudinary';
+import { uploadToWasabi, generateSignedUrl, generateDownloadUrl, deleteFromWasabi, extractFileKeyFromUrl } from '../../lib/wasabi';
 import { 
   FileText, 
   Upload, 
@@ -74,9 +74,8 @@ const StudentDocuments: React.FC = () => {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const maxSize = 10 * 1024 * 1024; // 10MB for Cloudinary
     
-    // Validate file object without instanceof
+    // Validate file object
     if (!file || typeof file !== 'object' || !file.name || !file.type || !file.size) {
       console.error('Invalid file object:', file);
       toast.error('Invalid file selected');
@@ -89,42 +88,21 @@ const StudentDocuments: React.FC = () => {
       size: file.size,
     });
 
-    if (file.size > maxSize) {
-      toast.error('File size must be less than 10MB');
-      return;
-    }
-
-    const allowedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('File type not supported. Please upload PDF, DOC, DOCX, images, or text files.');
-      return;
-    }
-
     setUploadingFiles(prev => [...prev, file.name]);
 
     try {
-      // Upload file to Cloudinary
-      const secureUrl = await uploadToCloudinary(file);
+      // Upload file to Wasabi
+      const { fileUrl, fileKey } = await uploadToWasabi(file, user?.id || '');
 
-      // Save document record to Supabase with Cloudinary URL
+      // Save document record to Supabase with Wasabi URL and file key
       const { error: insertError } = await supabase
         .from('documents')
         .insert({
           application_id: null, // For standalone uploads
           field_id: null,
           file_name: file.name,
-          file_url: secureUrl,
+          file_url: fileUrl,
+          file_key: fileKey, // Store the Wasabi file key for future operations
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user?.id,
@@ -141,20 +119,80 @@ const StudentDocuments: React.FC = () => {
       // Refresh documents immediately after successful upload
       await fetchDocuments();
     } catch (error: any) {
-      console.error('Error uploading file to Cloudinary:', error);
+      console.error('Error uploading file to Wasabi:', error);
       toast.error(error.message || 'Failed to upload file');
     } finally {
       setUploadingFiles(prev => prev.filter(name => name !== file.name));
     }
   };
 
-  const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string) => {
+  const handleViewDocument = async (document: any) => {
+    try {
+      let viewUrl: string;
+      
+      if (document.file_key) {
+        // Generate signed URL for viewing
+        viewUrl = await generateSignedUrl(document.file_key, 3600); // 1 hour expiry
+      } else {
+        // Fallback to direct URL (for older documents)
+        viewUrl = document.file_url;
+      }
+      
+      window.open(viewUrl, '_blank');
+    } catch (error) {
+      console.error('Error generating view URL:', error);
+      toast.error('Failed to open document');
+    }
+  };
+
+  const handleDownloadDocument = async (document: any) => {
+    try {
+      let downloadUrl: string;
+      
+      if (document.file_key) {
+        // Generate signed URL for downloading with proper headers
+        downloadUrl = await generateDownloadUrl(document.file_key, document.file_name, 3600);
+      } else {
+        // Fallback to direct URL (for older documents)
+        downloadUrl = document.file_url;
+      }
+      
+      // Create a temporary link to trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = document.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Download started');
+    } catch (error) {
+      console.error('Error generating download URL:', error);
+      toast.error('Failed to download document');
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string, fileKey?: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
     try {
+      // Delete from Wasabi if we have the file key
+      if (fileKey) {
+        const deleted = await deleteFromWasabi(fileKey);
+        if (!deleted) {
+          console.warn('Failed to delete file from Wasabi, but continuing with database deletion');
+        }
+      } else {
+        // Try to extract file key from URL for older documents
+        try {
+          const extractedKey = extractFileKeyFromUrl(fileUrl);
+          await deleteFromWasabi(extractedKey);
+        } catch (extractError) {
+          console.warn('Could not extract file key from URL, skipping Wasabi deletion');
+        }
+      }
+
       // Delete document record from Supabase
-      // Note: Cloudinary files can be managed through their dashboard
-      // or you can implement server-side deletion for production
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -308,7 +346,7 @@ const StudentDocuments: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url)}
+                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url, document.file_key)}
                   className="p-1 text-red-500 hover:text-red-700"
                   title={t('delete_document')}
                 >
@@ -346,23 +384,20 @@ const StudentDocuments: React.FC = () => {
 
               {/* Actions */}
               <div className="flex space-x-2">
-                <a
-                  href={document.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => handleViewDocument(document)}
                   className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Eye className="w-4 h-4" />
                   <span>{t('view')}</span>
-                </a>
-                <a
-                  href={document.file_url}
-                  download={document.file_name}
+                </button>
+                <button
+                  onClick={() => handleDownloadDocument(document)}
                   className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   <span>{t('download')}</span>
-                </a>
+                </button>
               </div>
             </div>
           ))}
@@ -385,10 +420,10 @@ const StudentDocuments: React.FC = () => {
           <div>
             <h4 className="font-medium text-gray-700 mb-2">{t('requirements')}:</h4>
             <ul className="space-y-1">
-              <li>• Maximum file size: 10MB</li>
+              <li>• Maximum file size: 50MB</li>
               <li>• Clear and readable documents</li>
               <li>• Original or certified copies preferred</li>
-              <li>• Files are stored securely in Cloudinary</li>
+              <li>• Files are stored securely in Wasabi</li>
             </ul>
           </div>
         </div>

@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/client-s3": "^3.844.0",
     "@supabase/supabase-js": "^2.39.0",
     "cloudinary": "^2.7.0",
     "lucide-react": "^0.344.0",
