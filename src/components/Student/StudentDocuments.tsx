@@ -1,9 +1,11 @@
+"use client"; // Ensure client-side rendering in Next.js
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { uploadToWasabi, generateSignedUrl, generateDownloadUrl, deleteFromWasabi, extractFileKeyFromUrl } from '../../lib/wasabi';
+import { uploadToWasabi, deleteFromWasabi, generateSignedUrl, generateDownloadUrl, extractFileKeyFromUrl } from '../../lib/wasabi';
 import { 
   FileText, 
   Upload, 
@@ -15,7 +17,8 @@ import {
   Image,
   FileType,
   Search,
-  Filter
+  Filter,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,6 +31,14 @@ const StudentDocuments: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [fileTypeFilter, setFileTypeFilter] = useState('all');
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  // Ensure code runs only on client-side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -75,33 +86,24 @@ const StudentDocuments: React.FC = () => {
 
     const file = files[0];
     
-    // Validate file object
     if (!file || typeof file !== 'object' || !file.name || !file.type || !file.size) {
       console.error('Invalid file object:', file);
       toast.error('Invalid file selected');
       return;
     }
 
-    console.log('File validation passed:', {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-    });
-
     setUploadingFiles(prev => [...prev, file.name]);
 
     try {
-      // Upload file to Wasabi
-      const { fileUrl, fileKey } = await uploadToWasabi(file, user?.id || '');
+      const { fileKey } = await uploadToWasabi(file, user?.id || '');
 
-      // Save document record to Supabase with Wasabi URL and file key
       const { error: insertError } = await supabase
         .from('documents')
         .insert({
-          application_id: null, // For standalone uploads
+          application_id: null,
           field_id: null,
           file_name: file.name,
-          file_url: fileUrl,
+          file_key: fileKey,
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user?.id,
@@ -115,7 +117,6 @@ const StudentDocuments: React.FC = () => {
       }
 
       toast.success('File uploaded successfully');
-      // Refresh documents immediately after successful upload
       await fetchDocuments();
     } catch (error: any) {
       console.error('Error uploading file to Wasabi:', error);
@@ -128,39 +129,44 @@ const StudentDocuments: React.FC = () => {
   const handleViewDocument = async (document: any) => {
     try {
       let viewUrl: string;
-      
-      try {
-        // Extract file key from Wasabi URL and generate signed URL
+      if (document.file_key) {
+        viewUrl = await generateSignedUrl(document.file_key, 3600);
+      } else if (document.file_url) {
+        // Handle legacy URLs
         const fileKey = extractFileKeyFromUrl(document.file_url);
-        viewUrl = await generateSignedUrl(fileKey, 3600); // 1 hour expiry
-      } catch (extractError) {
-        console.warn('Could not extract file key from URL, using direct URL:', extractError);
-        // Fallback to direct URL (for older documents or non-Wasabi URLs)
-        viewUrl = document.file_url;
+        viewUrl = await generateSignedUrl(fileKey, 3600);
+      } else {
+        throw new Error('No file key or URL available');
       }
-      
-      window.open(viewUrl, '_blank');
+      setSignedUrl(viewUrl);
+      setSelectedDocument(document);
     } catch (error) {
-      console.error('Error generating view URL:', error);
+      console.error('Error generating presigned URL for viewing:', error);
       toast.error('Failed to open document');
     }
   };
 
   const handleDownloadDocument = async (document: any) => {
     try {
+      if (!isClient || typeof document === 'undefined' || typeof document.createElement !== 'function') {
+        console.error('Cannot download: document API is not available');
+        toast.error('Download not supported in this environment');
+        return;
+      }
+
       let downloadUrl: string;
-      
-      try {
-        // Extract file key from Wasabi URL and generate download URL
+      if (document.file_key) {
+        downloadUrl = await generateDownloadUrl(document.file_key, document.file_name, 3600);
+      } else if (document.file_url) {
+        // Handle legacy URLs
         const fileKey = extractFileKeyFromUrl(document.file_url);
         downloadUrl = await generateDownloadUrl(fileKey, document.file_name, 3600);
-      } catch (extractError) {
-        console.warn('Could not extract file key from URL, using direct URL:', extractError);
-        // Fallback to direct URL (for older documents or non-Wasabi URLs)
-        downloadUrl = document.file_url;
+      } else {
+        throw new Error('No file key or URL available');
       }
-      
-      // Create a temporary link to trigger download
+
+      console.log('Initiating download for:', document.file_name, { downloadUrl });
+
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = document.file_name;
@@ -170,27 +176,20 @@ const StudentDocuments: React.FC = () => {
       
       toast.success('Download started');
     } catch (error) {
-      console.error('Error generating download URL:', error);
+      console.error('Error downloading document:', error);
       toast.error('Failed to download document');
     }
   };
 
-  const handleDeleteDocument = async (documentId: string, fileName: string, fileUrl: string) => {
+  const handleDeleteDocument = async (documentId: string, fileName: string, fileKey: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
     try {
-      // Try to extract file key from URL and delete from Wasabi
-      try {
-        const fileKey = extractFileKeyFromUrl(fileUrl);
-        const deleted = await deleteFromWasabi(fileKey);
-        if (!deleted) {
-          console.warn('Failed to delete file from Wasabi, but continuing with database deletion');
-        }
-      } catch (extractError) {
-        console.warn('Could not extract file key from URL, skipping Wasabi deletion:', extractError);
+      const deleted = await deleteFromWasabi(fileKey);
+      if (!deleted) {
+        console.warn('Failed to delete file from Wasabi, but continuing with database deletion');
       }
 
-      // Delete document record from Supabase
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -206,6 +205,43 @@ const StudentDocuments: React.FC = () => {
     } catch (error) {
       console.error('Error deleting document:', error);
       toast.error('Failed to delete document');
+    }
+  };
+
+  const renderDocumentViewer = (document: any, url: string | null) => {
+    if (!url) return <div className="text-gray-600 text-center">{t('loading_document')}</div>;
+
+    const fileType = document.file_type.toLowerCase();
+
+    if (fileType.includes('pdf')) {
+      return (
+        <iframe
+          src={url}
+          className="w-full h-[600px] border border-gray-300 rounded-lg"
+          title={document.file_name}
+        />
+      );
+    } else if (fileType.includes('image') || fileType.includes('jpeg') || fileType.includes('jpg') || fileType.includes('png')) {
+      return (
+        <img
+          src={url}
+          alt={document.file_name}
+          className="w-full h-[600px] object-contain border border-gray-300 rounded-lg"
+        />
+      );
+    } else {
+      return (
+        <div className="text-gray-600 text-center">
+          <p className="mb-2">{t('preview_not_available')}</p>
+          <button
+            onClick={() => handleDownloadDocument(document)}
+            className="inline-flex items-center space-x-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Download className="w-4 h-4" />
+            <span>{t('download')}</span>
+          </button>
+        </div>
+      );
     }
   };
 
@@ -302,6 +338,21 @@ const StudentDocuments: React.FC = () => {
         </div>
       )}
 
+      {/* Document Viewer Modal */}
+      {selectedDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">{selectedDocument.file_name}</h3>
+              <button onClick={() => { setSelectedDocument(null); setSignedUrl(null); }} className="text-gray-600 hover:text-gray-800">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            {renderDocumentViewer(selectedDocument, signedUrl)}
+          </div>
+        </div>
+      )}
+
       {/* Documents Grid */}
       {filteredDocuments.length === 0 ? (
         <div className="text-center py-12">
@@ -344,8 +395,7 @@ const StudentDocuments: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url, document.file_key)}
-                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_url)}
+                  onClick={() => handleDeleteDocument(document.id, document.file_name, document.file_key)}
                   className="p-1 text-red-500 hover:text-red-700"
                   title={t('delete_document')}
                 >
@@ -353,7 +403,6 @@ const StudentDocuments: React.FC = () => {
                 </button>
               </div>
 
-              {/* Document Info */}
               <div className="space-y-2 mb-4">
                 {document.applications?.scholarship_forms && (
                   <div>
@@ -381,7 +430,6 @@ const StudentDocuments: React.FC = () => {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleViewDocument(document)}
@@ -403,7 +451,6 @@ const StudentDocuments: React.FC = () => {
         </div>
       )}
 
-      {/* File Upload Guidelines */}
       <div className="mt-8 bg-gray-50 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('upload_guidelines')}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
@@ -422,7 +469,7 @@ const StudentDocuments: React.FC = () => {
               <li>• Maximum file size: 50MB</li>
               <li>• Clear and readable documents</li>
               <li>• Original or certified copies preferred</li>
-              <li>• Files are stored securely in Wasabi</li>
+              <li>• Files are stored securely</li>
             </ul>
           </div>
         </div>

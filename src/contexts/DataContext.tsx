@@ -268,7 +268,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .in('id', userIds),
           supabase
             .from('profiles')
-            .select('user_id, full_name, phone')
+            .select('user_id, full_name, phone, is_verified')
             .in('user_id', userIds)
         ])
 
