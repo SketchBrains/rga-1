@@ -7,7 +7,7 @@ import { DataProvider } from './contexts/DataContext'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
 import ResetPasswordForm from './components/Auth/ResetPasswordForm'
-import ConfirmReset from './components/Auth/ConfirmReset' // Add this import
+import ConfirmReset from './components/Auth/ConfirmReset'
 import Header from './components/Layout/Header'
 import Sidebar from './components/Layout/Sidebar'
 import Marquee from './components/Layout/Marquee'
@@ -18,6 +18,7 @@ import StudentHistory from './components/Student/StudentHistory'
 import AdminDashboard from './components/Admin/AdminDashboard'
 import CreateEditForms from './components/Admin/CreateEditForms'
 import ViewApplications from './components/Admin/ViewApplications'
+import StudentDetail from './components/Admin/StudentDetail'
 import MarqueeEditor from './components/Admin/MarqueeEditor'
 import ExportData from './components/Admin/ExportData'
 
@@ -77,12 +78,14 @@ const AppContent: React.FC = () => {
           return <CreateEditForms />
         case 'applications':
           return <ViewApplications />
+        case 'student-detail':
+          return <StudentDetail />
         case 'marquee':
           return <MarqueeEditor />
         case 'export':
           return <ExportData />
         default:
-          return <AdminDashboard />
+          return <AdminDashboard onNavigate={setActiveTab} />
       }
     } else if (user) {
       console.log('👨‍🎓 Rendering student dashboard, activeTab:', activeTab)
@@ -96,7 +99,7 @@ const AppContent: React.FC = () => {
         case 'history':
           return <StudentHistory />
         default:
-          return <StudentDashboard />
+          return <StudentDashboard onNavigate={setActiveTab} />
       }
     } else {
       return null
@@ -133,7 +136,7 @@ function App() {
         <LanguageProvider>
           <Routes>
             <Route path="/auth/reset-password" element={<ResetPasswordForm />} />
-            <Route path="/auth/confirm-reset" element={<ConfirmReset />} /> {/* Add this line */}
+            <Route path="/auth/confirm-reset" element={<ConfirmReset />} />
             <Route path="/*" element={<AppContent />} />
           </Routes>
           <Toaster

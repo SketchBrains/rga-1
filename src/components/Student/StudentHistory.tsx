@@ -48,8 +48,11 @@ const StudentHistory: React.FC = () => {
 
   useEffect(() => {
     filterApplications()
-    calculateStats()
   }, [applications, statusFilter, yearFilter])
+
+  useEffect(() => {
+    calculateStats()
+  }, [filteredApplications])
 
   const filterApplications = () => {
     let filtered = applications
@@ -69,13 +72,13 @@ const StudentHistory: React.FC = () => {
   }
 
   const calculateStats = () => {
-    const stats = filteredApplications.reduce((acc, app) => {
+    const newStats = filteredApplications.reduce((acc, app) => {
       acc.total++
-      acc[app.status]++
+      acc[app.status] = (acc[app.status] || 0) + 1
       return acc
     }, { total: 0, pending: 0, approved: 0, rejected: 0, hold: 0 })
 
-    setStats(stats)
+    setStats(newStats)
   }
 
   const getStatusIcon = (status: string) => {
@@ -137,8 +140,12 @@ const StudentHistory: React.FC = () => {
     icon: React.ComponentType<any>
     color: string
     bgColor: string
-  }> = ({ title, value, icon: Icon, color, bgColor }) => (
-    <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
+    onClick?: () => void
+  }> = ({ title, value, icon: Icon, color, bgColor, onClick }) => (
+    <div 
+      className={`bg-white rounded-lg shadow-md p-4 border border-gray-200 ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600">{title}</p>
@@ -185,6 +192,7 @@ const StudentHistory: React.FC = () => {
           icon={FileText}
           color="text-blue-600"
           bgColor="bg-blue-100"
+          onClick={() => setStatusFilter('all')}
         />
         <StatCard
           title="Pending"
@@ -192,6 +200,7 @@ const StudentHistory: React.FC = () => {
           icon={Clock}
           color="text-blue-600"
           bgColor="bg-blue-100"
+          onClick={() => setStatusFilter('pending')}
         />
         <StatCard
           title="Approved"
@@ -199,6 +208,7 @@ const StudentHistory: React.FC = () => {
           icon={CheckCircle}
           color="text-green-600"
           bgColor="bg-green-100"
+          onClick={() => setStatusFilter('approved')}
         />
         <StatCard
           title="Rejected"
@@ -206,6 +216,7 @@ const StudentHistory: React.FC = () => {
           icon={XCircle}
           color="text-red-600"
           bgColor="bg-red-100"
+          onClick={() => setStatusFilter('rejected')}
         />
         <StatCard
           title="On Hold"
@@ -213,6 +224,7 @@ const StudentHistory: React.FC = () => {
           icon={Pause}
           color="text-yellow-600"
           bgColor="bg-yellow-100"
+          onClick={() => setStatusFilter('hold')}
         />
       </div>
 

@@ -11,7 +11,8 @@ import {
   Settings,
   Download,
   Megaphone,
-  X
+  X,
+  UserSearch
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -36,6 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
     { id: 'dashboard', label: t('nav.dashboard'), icon: Home },
     { id: 'forms', label: 'Create/Edit Forms', icon: PlusCircle },
     { id: 'applications', label: 'View Applications', icon: Users },
+    { id: 'student-detail', label: 'Student Details', icon: UserSearch },
     { id: 'marquee', label: 'Marquee Editor', icon: Megaphone },
     { id: 'export', label: 'Export Data', icon: Download },
   ]

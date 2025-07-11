@@ -129,8 +129,14 @@ const ExportData: React.FC = () => {
   }
 
   const exportToCSV = async () => {
+    if (loading) {
+      console.log('Export already in progress, skipping...')
+      return
+    }
+
     setLoading(true)
     try {
+      console.log('Starting export with filters:', filters)
       const { data, error } = await buildQuery()
 
       if (error) throw error
@@ -139,6 +145,8 @@ const ExportData: React.FC = () => {
         toast.error('No data found for the selected filters')
         return
       }
+
+      console.log('Data fetched for export:', data.length, 'records')
 
       // Prepare CSV headers
       const headers = [
@@ -207,17 +215,19 @@ const ExportData: React.FC = () => {
         ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       ].join('\n')
 
-      // Download CSV
+      // Create and download file
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-      const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
       link.setAttribute('href', url)
       link.setAttribute('download', `scholarship_applications_${new Date().toISOString().split('T')[0]}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      URL.revokeObjectURL(url) // Clean up the URL object
 
+      console.log('Export completed successfully')
       toast.success(`Exported ${data.length} applications successfully`)
     } catch (error) {
       console.error('Error exporting data:', error)
@@ -228,6 +238,11 @@ const ExportData: React.FC = () => {
   }
 
   const exportApplicationSummary = async () => {
+    if (loading) {
+      console.log('Export already in progress, skipping...')
+      return
+    }
+
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -275,16 +290,17 @@ const ExportData: React.FC = () => {
         ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
       ].join('\n')
 
-      // Download CSV
+      // Create and download file
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-      const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
       link.setAttribute('href', url)
       link.setAttribute('download', `application_summary_${new Date().toISOString().split('T')[0]}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      URL.revokeObjectURL(url) // Clean up the URL object
 
       toast.success('Summary exported successfully')
     } catch (error) {
@@ -293,6 +309,27 @@ const ExportData: React.FC = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleQuickAction = async (status: string, dateRange?: { from: string; to: string }) => {
+    if (loading) {
+      console.log('Export already in progress, skipping quick action...')
+      return
+    }
+
+    const newFilters = {
+      ...filters,
+      status,
+      dateFrom: dateRange?.from || '',
+      dateTo: dateRange?.to || ''
+    }
+    
+    setFilters(newFilters)
+    
+    // Wait a moment for state to update, then export
+    setTimeout(() => {
+      exportToCSV()
+    }, 100)
   }
 
   const StatCard: React.FC<{
@@ -483,41 +520,35 @@ const ExportData: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
-            onClick={() => {
-              setFilters({ ...filters, status: 'approved', dateFrom: '', dateTo: '' })
-              setTimeout(() => exportToCSV(), 100)
-            }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+            onClick={() => handleQuickAction('approved')}
+            disabled={loading}
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50"
           >
             <CheckCircle className="w-5 h-5" />
-            <span>Export Approved</span>
+            <span>{loading ? 'Exporting...' : 'Export Approved'}</span>
           </button>
           <button
-            onClick={() => {
-              setFilters({ ...filters, status: 'pending', dateFrom: '', dateTo: '' })
-              setTimeout(() => exportToCSV(), 100)
-            }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors"
+            onClick={() => handleQuickAction('pending')}
+            disabled={loading}
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors disabled:opacity-50"
           >
             <Clock className="w-5 h-5" />
-            <span>Export Pending</span>
+            <span>{loading ? 'Exporting...' : 'Export Pending'}</span>
           </button>
           <button
             onClick={() => {
               const today = new Date()
               const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate())
-              setFilters({ 
-                ...filters, 
-                status: 'all', 
-                dateFrom: lastMonth.toISOString().split('T')[0],
-                dateTo: today.toISOString().split('T')[0]
+              handleQuickAction('all', {
+                from: lastMonth.toISOString().split('T')[0],
+                to: today.toISOString().split('T')[0]
               })
-              setTimeout(() => exportToCSV(), 100)
             }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+            disabled={loading}
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
           >
             <Calendar className="w-5 h-5" />
-            <span>Export Last Month</span>
+            <span>{loading ? 'Exporting...' : 'Export Last Month'}</span>
           </button>
         </div>
       </div>

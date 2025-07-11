@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { generateSignedUrl, generateDownloadUrl, extractFileKeyFromUrl } from '../../lib/wasabi';
 import {
   Search,
   Filter,
@@ -16,6 +17,11 @@ import {
   Calendar,
   FileText,
   AlertCircle,
+  X,
+  ExternalLink,
+  Image,
+  FileType,
+  File
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -53,6 +59,8 @@ const ViewApplications: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [formFilter, setFormFilter] = useState('all');
   const [forms, setForms] = useState<any[]>([]);
+  const [viewingDocument, setViewingDocument] = useState<any>(null);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const { user } = useAuth();
   const { t } = useLanguage();
 
@@ -128,7 +136,7 @@ const ViewApplications: React.FC = () => {
 
   const fetchApplicationDetails = async (applicationId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: responses, error: responsesError } = await supabase
         .from('application_responses')
         .select(`
           *,
@@ -136,17 +144,17 @@ const ViewApplications: React.FC = () => {
         `)
         .eq('application_id', applicationId);
 
-      if (error) throw error;
+      if (responsesError) throw responsesError;
 
-      const { data: documents, error: docsError } = await supabase
+      const { data: documents, error: documentsError } = await supabase
         .from('documents')
         .select('*')
         .eq('application_id', applicationId);
 
-      if (docsError) throw docsError;
+      if (documentsError) throw documentsError;
 
       setApplicationDetails({
-        responses: data || [],
+        responses: responses || [],
         documents: documents || [],
       });
     } catch (error) {
@@ -158,6 +166,114 @@ const ViewApplications: React.FC = () => {
   const handleViewApplication = (application: Application) => {
     setSelectedApplication(application);
     fetchApplicationDetails(application.id);
+  };
+
+  const handleViewDocument = async (document: any) => {
+    try {
+      let viewUrl: string;
+      if (document.file_key) {
+        viewUrl = await generateSignedUrl(document.file_key, 3600);
+      } else if (document.file_url) {
+        const fileKey = extractFileKeyFromUrl(document.file_url);
+        viewUrl = await generateSignedUrl(fileKey, 3600);
+      } else {
+        throw new Error('No file key or URL available');
+      }
+      setDocumentUrl(viewUrl);
+      setViewingDocument(document);
+    } catch (error) {
+      console.error('Error generating presigned URL for viewing:', error);
+      toast.error('Failed to open document');
+    }
+  };
+
+  const handleDownloadDocument = async (document: any) => {
+    try {
+      let downloadUrl: string;
+      if (document.file_key) {
+        downloadUrl = await generateDownloadUrl(document.file_key, document.file_name, 3600);
+      } else if (document.file_url) {
+        const fileKey = extractFileKeyFromUrl(document.file_url);
+        downloadUrl = await generateDownloadUrl(fileKey, document.file_name, 3600);
+      } else {
+        throw new Error('No file key or URL available');
+      }
+
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = document.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Download started');
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast.error('Failed to download document');
+    }
+  };
+
+  const handleViewStudentProfile = (studentId: string) => {
+    // Navigate to student detail page
+    window.open(`/admin/student-detail?id=${studentId}`, '_blank');
+  };
+
+  const renderDocumentViewer = (document: any, url: string | null) => {
+    if (!url) return <div className="text-gray-600 text-center">Loading document...</div>;
+
+    const fileType = document.file_type.toLowerCase();
+
+    if (fileType.includes('pdf')) {
+      return (
+        <iframe
+          src={url}
+          className="w-full h-[500px] border border-gray-300 rounded-lg"
+          title={document.file_name}
+        />
+      );
+    } else if (fileType.includes('image') || fileType.includes('jpeg') || fileType.includes('jpg') || fileType.includes('png')) {
+      return (
+        <img
+          src={url}
+          alt={document.file_name}
+          className="w-full max-h-[500px] object-contain border border-gray-300 rounded-lg"
+        />
+      );
+    } else {
+      return (
+        <div className="text-gray-600 text-center p-8">
+          <p className="mb-4">Preview not available for this file type</p>
+          <button
+            onClick={() => handleDownloadDocument(document)}
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download to View</span>
+          </button>
+        </div>
+      );
+    }
+  };
+
+  const getFileIcon = (fileType: string) => {
+    const type = fileType.toLowerCase();
+    if (type.includes('pdf')) {
+      return <FileType className="w-5 h-5 text-red-500" />;
+    } else if (type.includes('image') || type.includes('jpeg') || type.includes('jpg') || type.includes('png')) {
+      return <Image className="w-5 h-5 text-green-500" />;
+    } else if (type.includes('doc') || type.includes('docx')) {
+      return <File className="w-5 h-5 text-blue-500" />;
+    } else {
+      return <FileText className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const updateApplicationStatus = async (applicationId: string, status: string, notes?: string) => {
@@ -329,8 +445,11 @@ const ViewApplications: React.FC = () => {
                         <User className="w-5 h-5 text-gray-600" />
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 flex items-center">
                           {application.users?.profiles?.full_name || 'N/A'}
+                          {application.users?.profiles?.is_verified && (
+                            <CheckCircle className="w-4 h-4 text-green-500 ml-2" />
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">{application.users?.email}</div>
                       </div>
@@ -383,7 +502,7 @@ const ViewApplications: React.FC = () => {
       {/* Application Detail Modal */}
       {selectedApplication && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
@@ -401,12 +520,21 @@ const ViewApplications: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedApplication(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleViewStudentProfile(selectedApplication.student_id)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>View Complete Profile</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedApplication(null)}
+                    className="text-gray-400 hover:text-gray-600 p-2"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -454,26 +582,33 @@ const ViewApplications: React.FC = () => {
               {/* Documents */}
               {applicationDetails?.documents?.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Documents</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Uploaded Documents</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {applicationDetails.documents.map((doc: any) => (
                       <div key={doc.id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center space-x-2">
-                          <FileText className="w-5 h-5 text-blue-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{doc.file_name}</p>
-                            <p className="text-xs text-gray-500">{(doc.file_size / 1024).toFixed(1)} KB</p>
+                        <div className="flex items-center space-x-2 mb-3">
+                          {getFileIcon(doc.file_type)}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)}</p>
                           </div>
                         </div>
-                        <a
-                          href={doc.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </a>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleViewDocument(doc)}
+                            className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 transition-colors"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>View</span>
+                          </button>
+                          <button
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 transition-colors"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>Download</span>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -528,6 +663,29 @@ const ViewApplications: React.FC = () => {
                   <span>{updating ? 'Updating...' : 'Approve'}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Viewer Modal */}
+      {viewingDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-semibold">{viewingDocument.file_name}</h3>
+              <button
+                onClick={() => {
+                  setViewingDocument(null);
+                  setDocumentUrl(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-4">
+              {renderDocumentViewer(viewingDocument, documentUrl)}
             </div>
           </div>
         </div>
