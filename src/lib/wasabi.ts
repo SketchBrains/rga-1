@@ -2,11 +2,12 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } fro
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Wasabi configuration
-const wasabiAccessKey = import.meta.env.VITE_WASABI_ACCESS_KEY
-const wasabiSecretKey = import.meta.env.VITE_WASABI_SECRET_KEY
-const wasabiBucket = import.meta.env.VITE_WASABI_BUCKET
-const wasabiRegion = import.meta.env.VITE_WASABI_REGION || 'us-east-1'
-const wasabiEndpoint = import.meta.env.VITE_WASABI_ENDPOINT || 'https://s3.wasabisys.com'
+const wasabiAccessKey = import.meta.env.VITE_WASABI_ACCESS_KEY_ID
+const wasabiSecretKey = import.meta.env.VITE_WASABI_SECRET_ACCESS_KEY
+const wasabiBucket    = import.meta.env.VITE_WASABI_BUCKET_NAME
+const wasabiRegion    = import.meta.env.VITE_WASABI_REGION || 'us-east-1'
+const wasabiEndpoint  = import.meta.env.VITE_WASABI_ENDPOINT || 'https://s3.wasabisys.com'
+
 
 // Log configuration for debugging
 console.log('🔧 Wasabi Configuration Check:', {
