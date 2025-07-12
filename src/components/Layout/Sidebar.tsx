@@ -1,37 +1,36 @@
-import React from 'react'
-import { useAuth } from '../../contexts/AuthContext'
-import { useLanguage } from '../../contexts/LanguageContext'
-import { 
-  Home, 
-  FileText, 
-  FolderOpen, 
-  Clock, 
-  Users, 
-  PlusCircle, 
-  Settings,
+import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  Home,
+  FileText,
+  FolderOpen,
+  Clock,
+  Users,
+  PlusCircle,
   Download,
   Megaphone,
   X,
-  UserSearch
-} from 'lucide-react'
+  UserSearch,
+} from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: string
-  setActiveTab: (tab: string) => void
-  isOpen?: boolean
-  onClose?: () => void
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = true, onClose }) => {
-  const { user } = useAuth()
-  const { t } = useLanguage()
+  const { user } = useAuth();
+  const { t } = useLanguage();
 
   const studentTabs = [
     { id: 'dashboard', label: t('nav.dashboard'), icon: Home },
     { id: 'applications', label: t('nav.applications'), icon: FileText },
     { id: 'documents', label: t('nav.documents'), icon: FolderOpen },
     { id: 'history', label: t('nav.history'), icon: Clock },
-  ]
+  ];
 
   const adminTabs = [
     { id: 'dashboard', label: t('nav.dashboard'), icon: Home },
@@ -40,35 +39,33 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
     { id: 'student-detail', label: 'Student Details', icon: UserSearch },
     { id: 'marquee', label: 'Marquee Editor', icon: Megaphone },
     { id: 'export', label: 'Export Data', icon: Download },
-  ]
+  ];
 
-  const tabs = user?.role === 'admin' ? adminTabs : studentTabs
+  const tabs = user?.role === 'admin' ? adminTabs : studentTabs;
 
   const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId)
+    setActiveTab(tabId);
     if (onClose) {
-      onClose()
+      onClose();
     }
-  }
+  };
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && onClose && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={onClose}
         />
       )}
-      
-      {/* Sidebar */}
-      <div className={`
-        fixed lg:static top-16 lg:top-0 bottom-0 left-0 z-40 lg:z-auto
-        w-64 bg-white border-r border-gray-200 h-full
-        transform transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        {/* Mobile close button */}
+      <div
+        className={`
+          fixed lg:static top-16 lg:top-0 bottom-0 left-0 z-50 lg:z-auto
+          w-64 bg-white border-r border-gray-200 h-full
+          transform transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
         {onClose && (
           <div className="lg:hidden flex justify-end p-4">
             <button
@@ -79,11 +76,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
             </button>
           </div>
         )}
-
         <nav className="mt-4 lg:mt-8 px-4 h-full overflow-y-auto">
           <ul className="space-y-2">
             {tabs.map((tab) => {
-              const Icon = tab.icon
+              const Icon = tab.icon;
               return (
                 <li key={tab.id}>
                   <button
@@ -98,13 +94,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
                     <span className="font-medium text-sm sm:text-base">{tab.label}</span>
                   </button>
                 </li>
-              )
+              );
             })}
           </ul>
         </nav>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;
