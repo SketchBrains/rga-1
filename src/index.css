@@ -230,7 +230,7 @@
 
 /* Responsive sidebar */
 .sidebar-mobile {
-  @apply fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0;
+  @apply fixed top-16 bottom-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:top-0;
 }
 
 .sidebar-mobile.closed {
@@ -248,7 +248,7 @@
 
 /* Responsive header */
 .header-mobile {
-  @apply sticky top-0 z-30 bg-white shadow-sm border-b border-gray-200;
+  @apply sticky top-0 z-50 bg-white shadow-sm border-b border-gray-200;
 }
 
 /* Mobile-optimized content area */
@@ -258,7 +258,7 @@
 
 /* Responsive dashboard layout */
 .dashboard-mobile {
-  @apply min-h-screen bg-gray-50 flex flex-col lg:flex-row;
+  @apply min-h-screen bg-gray-50 flex flex-col;
 }
 
 /* Mobile-friendly stats cards */

@@ -108,17 +108,17 @@ const AppContent: React.FC = () => {
 
   return (
     <DataProvider>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <Marquee />
-        <div className="flex">
+        <div className="flex flex-1 overflow-hidden">
           <Sidebar 
             activeTab={activeTab} 
             setActiveTab={setActiveTab}
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
           />
-          <main className="flex-1 overflow-auto min-h-screen lg:ml-0">
+          <main className="flex-1 overflow-auto">
             <div className="p-4 sm:p-6">
               {renderContent()}
             </div>

@@ -63,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
       
       {/* Sidebar */}
       <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
+        fixed lg:static top-16 lg:top-0 bottom-0 left-0 z-40 lg:z-auto
         w-64 bg-white border-r border-gray-200 h-full
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -80,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
           </div>
         )}
 
-        <nav className="mt-4 lg:mt-8 px-4">
+        <nav className="mt-4 lg:mt-8 px-4 h-full overflow-y-auto">
           <ul className="space-y-2">
             {tabs.map((tab) => {
               const Icon = tab.icon
