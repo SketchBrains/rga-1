@@ -1,110 +1,92 @@
-import React from 'react'
-import { useAuth } from '../../contexts/AuthContext'
-import { useLanguage } from '../../contexts/LanguageContext'
-import { 
-  Home, 
-  FileText, 
-  FolderOpen, 
-  Clock, 
-  Users, 
-  PlusCircle, 
-  Settings,
-  Download,
-  Megaphone,
-  X,
-  UserSearch
-} from 'lucide-react'
+import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { Globe, LogOut, User, Menu } from 'lucide-react';
 
-interface SidebarProps {
-  activeTab: string
-  setActiveTab: (tab: string) => void
-  isOpen?: boolean
-  onClose?: () => void
+interface HeaderProps {
+  onMenuClick?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = true, onClose }) => {
-  const { user } = useAuth()
-  const { t } = useLanguage()
+const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
+  const { user, profile, signOut } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
 
-  const studentTabs = [
-    { id: 'dashboard', label: t('nav.dashboard'), icon: Home },
-    { id: 'applications', label: t('nav.applications'), icon: FileText },
-    { id: 'documents', label: t('nav.documents'), icon: FolderOpen },
-    { id: 'history', label: t('nav.history'), icon: Clock },
-  ]
-
-  const adminTabs = [
-    { id: 'dashboard', label: t('nav.dashboard'), icon: Home },
-    { id: 'forms', label: 'Create/Edit Forms', icon: PlusCircle },
-    { id: 'applications', label: 'View Applications', icon: Users },
-    { id: 'student-detail', label: 'Student Details', icon: UserSearch },
-    { id: 'marquee', label: 'Marquee Editor', icon: Megaphone },
-    { id: 'export', label: 'Export Data', icon: Download },
-  ]
-
-  const tabs = user?.role === 'admin' ? adminTabs : studentTabs
-
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId)
-    if (onClose) {
-      onClose()
-    }
-  }
+  const handleLanguageToggle = () => {
+    const newLanguage = language === 'english' ? 'hindi' : 'english';
+    setLanguage(newLanguage);
+  };
 
   return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && onClose && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <div className={`
-        fixed lg:static top-16 lg:top-0 bottom-0 left-0 z-20 lg:z-auto
-        w-64 bg-white border-r border-gray-200 h-full
-        transform transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        {/* Mobile close button */}
-        {onClose && (
-          <div className="lg:hidden flex justify-end p-4">
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
+    <header className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Left side - Menu button and Logo */}
+          <div className="flex items-center space-x-3">
+            {onMenuClick && (
+              <button
+                onClick={onMenuClick}
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-lg">
+                <img
+                  src="https://res.cloudinary.com/dqqjonji8/image/upload/v1752142364/Black_and_White_Circular_Art_Design_Logo_irfozi.jpg"
+                  alt="Logo"
+                />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-sm sm:text-lg font-semibold text-gray-900">
+                  {t('org.name')}
+                </h1>
+                <p className="text-xs text-gray-500">{t('org.tagline')}</p>
+              </div>
+              <div className="sm:hidden">
+                <h1 className="text-sm font-semibold text-gray-900">RGA Portal</h1>
+              </div>
+            </div>
           </div>
-        )}
 
-        <nav className="mt-4 lg:mt-8 px-4 h-full overflow-y-auto">
-          <ul className="space-y-2">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <li key={tab.id}>
-                  <button
-                    onClick={() => handleTabClick(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg text-left transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-500'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="font-medium text-sm sm:text-base">{tab.label}</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
+          {/* Right side - Language switcher and user menu */}
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <button
+              onClick={handleLanguageToggle}
+              className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <Globe className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
+              <span className="text-xs sm:text-sm font-medium text-gray-700">
+                {language === 'english' ? 'हिंदी' : 'English'}
+              </span>
+            </button>
+            {user && (
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="flex items-center space-x-2">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <User className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
+                  </div>
+                  <div className="hidden md:block">
+                    <p className="text-xs sm:text-sm font-medium text-gray-900">
+                      {profile?.full_name || 'User'}
+                    </p>
+                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={signOut}
+                  className="p-1 sm:p-2 text-gray-400 hover:text-red-500 transition-colors"
+                  title={t('nav.logout')}
+                >
+                  <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </>
-  )
-}
+    </header>
+  );
+};
 
-export default Sidebar
+export default Header;
