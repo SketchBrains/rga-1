@@ -380,7 +380,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
     }
   }
 
-  const saveAsDraft = async () => {
+  saveAsDraft = async () => {
     if (!user) return
 
     setSaving(true)
