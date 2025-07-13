@@ -48,6 +48,17 @@ interface Application {
   };
 }
 
+// Utility function to sanitize text content
+const sanitizeText = (text: string): string => {
+  // Basic XSS prevention - remove potentially dangerous characters
+  return text
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+}
+
 const ViewApplications: React.FC = () => {
   const [applications, setApplications] = useState<Application[]>([]);
   const [filteredApplications, setFilteredApplications] = useState<Application[]>([]);
@@ -622,7 +633,7 @@ const ViewApplications: React.FC = () => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={3}
                   placeholder="Add notes about this application..."
-                  defaultValue={selectedApplication.admin_notes || ''}
+                  <p className="text-sm sm:text-base text-blue-800">{sanitizeText(selectedApplication.admin_notes)}</p>
                   id="admin-notes"
                 />
               </div>

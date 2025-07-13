@@ -280,12 +280,12 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
   const submitApplication = async () => {
     if (!user || !profile) {
-      toast.error('Please complete your profile first')
+      toast.error('Please complete your profile first. Go to your profile settings to add required information.')
       return
     }
 
     if (!validateForm()) {
-      toast.error('Please fill in all required fields correctly')
+      toast.error('Please fill in all required fields correctly. Check for any highlighted errors above.')
       return
     }
 
@@ -304,6 +304,104 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
       if (appError) {
         console.error('Supabase application insert error:', appError);
+        // Enhanced error handling for application submission
+        if (appError.message.includes('duplicate key')) {
+          throw new Error('You have already submitted an application for this scholarship. Each student can only apply once per scholarship.')
+        } else if (appError.message.includes('foreign key')) {
+          throw new Error('Invalid form or user data. Please refresh the page and try again.')
+        }
+        throw appError;
+      }
+
+      // Save responses
+      const responsesToSave = Object.entries(responses)
+        .filter(([_, value]) => value && value !== '')
+        .map(([fieldId, value]) => ({
+          application_id: application.id,
+          field_id: fieldId,
+          response_value: typeof value === 'string' ? value : (value ? value.name : '')
+        }))
+
+      if (responsesToSave.length > 0) {
+        const { error: responseError } = await supabase
+          .from('application_responses')
+          .insert(responsesToSave)
+
+        if (responseError) {
+          console.error('Supabase response insert error:', responseError);
+          throw responseError;
+        }
+      }
+
+      // Save uploaded files
+      const filesToSave = Object.entries(uploadedFiles).map(([fieldId, fileUrl]) => ({
+        application_id: application.id,
+        field_id: fieldId,
+        file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
+        file_url: fileUrl,
+        file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
+        file_size: (responses[fieldId] as File)?.size || 0,
+        uploaded_by: user.id
+      }))
+
+      if (filesToSave.length > 0) {
+        const { error: fileError } = await supabase
+          .from('documents')
+          .insert(filesToSave)
+
+        if (fileError) {
+          console.error('Supabase document insert error:', fileError);
+          toast.error(`Failed to save documents: ${fileError.message}. Your application was submitted but some files may not have been saved properly.`);
+          throw fileError;
+        }
+      }
+
+      toast.success('Application submitted successfully! You will receive email updates about your application status.')
+      await fetchApplications() // Refresh applications
+      onSuccess()
+    } catch (error) {
+      console.error('Error submitting application:', error)
+      // Enhanced error handling
+      let errorMessage = 'Failed to submit application'
+      if (error.message) {
+        if (error.message.includes('duplicate key') || error.message.includes('already submitted')) {
+          errorMessage = 'You have already submitted an application for this scholarship.'
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.'
+        } else if (error.message.includes('permission')) {
+          errorMessage = 'You do not have permission to submit this application. Please contact support.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      toast.error(errorMessage)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const saveAsDraft = async () => {
+    if (!user) return
+
+    setSaving(true)
+    try {
+      // Create application with draft status
+      const { data: application, error: appError } = await supabase
+        .from('applications')
+        .insert({
+          form_id: form.id,
+          student_id: user.id,
+          status: 'draft'
+        })
+        .select()
+        .single()
+
+      if (appError) {
+        console.error('Supabase application insert error:', appError);
+        // Enhanced error handling for draft saving
+        if (appError.message.includes('duplicate key')) {
+          throw new Error('You already have a draft or submitted application for this scholarship.')
+        }
         throw appError;
       }
 
@@ -350,13 +448,24 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         }
       }
 
-      toast.success('Application submitted successfully!')
-      await fetchApplications() // Refresh applications
-      onSuccess()
+      toast.success('Draft saved successfully. You can continue editing later.')
     } catch (error) {
-      console.error('Error submitting application:', error)
-      toast.error('Failed to submit application')
+      console.error('Error saving draft:', error)
+      let errorMessage = 'Failed to save draft'
+      if (error.message) {
+        if (error.message.includes('duplicate key') || error.message.includes('already have')) {
+          errorMessage = 'You already have a draft for this scholarship. Please complete your existing application.'
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      toast.error(errorMessage)
     } finally {
+      setSaving(false)
+    }
+  }
       setSubmitting(false)
     }
   }

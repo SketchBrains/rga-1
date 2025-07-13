@@ -37,6 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
     { id: 'forms', label: 'Create/Edit Forms', icon: PlusCircle },
     { id: 'applications', label: 'View Applications', icon: Users },
     { id: 'student-detail', label: 'Student Details', icon: UserSearch },
+    { id: 'user-management', label: 'User Management', icon: Users },
     { id: 'marquee', label: 'Marquee Editor', icon: Megaphone },
     { id: 'export', label: 'Export Data', icon: Download },
   ];

@@ -71,7 +71,22 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       await signIn(formData.email, formData.password)
       toast.success('Welcome back!')
     } catch (error: any) {
-      toast.error(error.message || 'Login failed')
+      // Enhanced error handling for login
+      let errorMessage = 'Login failed'
+      if (error.message) {
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password. Please check your credentials and try again.'
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = 'Please verify your email address before signing in.'
+        } else if (error.message.includes('Too many requests')) {
+          errorMessage = 'Too many login attempts. Please wait a few minutes and try again.'
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -118,7 +133,30 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       }
     } catch (error: any) {
       console.error('❌ signUp error:', error)
-      toast.error(error.message || (language === 'hindi' ? 'साइन अप विफल' : 'Signup failed'))
+      // Enhanced error handling for signup
+      let errorMessage = language === 'hindi' ? 'साइन अप विफल' : 'Signup failed'
+      if (error.message) {
+        if (error.message.includes('already registered')) {
+          errorMessage = language === 'hindi' 
+            ? 'यह ईमेल पहले से पंजीकृत है। कृपया लॉगिन करें।'
+            : 'This email is already registered. Please sign in instead.'
+        } else if (error.message.includes('Invalid email')) {
+          errorMessage = language === 'hindi' 
+            ? 'अमान्य ईमेल पता। कृपया एक वैध ईमेल दर्ज करें।'
+            : 'Invalid email address. Please enter a valid email.'
+        } else if (error.message.includes('Password')) {
+          errorMessage = language === 'hindi' 
+            ? 'पासवर्ड आवश्यकताओं को पूरा नहीं करता।'
+            : 'Password does not meet requirements.'
+        } else if (error.message.includes('Network')) {
+          errorMessage = language === 'hindi' 
+            ? 'नेटवर्क त्रुटि। कृपया अपना इंटरनेट कनेक्शन जांचें।'
+            : 'Network error. Please check your internet connection.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

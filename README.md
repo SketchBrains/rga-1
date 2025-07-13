@@ -164,7 +164,7 @@ A digital-first approach that provides:
   - Real-time subscriptions
   - Row Level Security (RLS)
   - Authentication & authorization
-- **☁️ Cloudinary** - Cloud-based media management and optimization
+- **☁️ Wasabi** - Secure cloud storage for documents and files
 - **🔐 JWT Authentication** - Secure user authentication
 
 ### Development Tools
@@ -173,7 +173,7 @@ A digital-first approach that provides:
 - **🎯 PostCSS & Autoprefixer** - CSS processing
 
 ### Cloud Infrastructure
-- **🌐 Cloudinary** - Primary file storage and media management
+- **🌐 Wasabi** - Primary file storage via secure Edge Functions
 - **🔒 Supabase** - Database and authentication
 - **📡 Real-time Updates** - Live data synchronization
 
@@ -255,9 +255,8 @@ Create a `.env` file in the root directory:
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Cloudinary Configuration
-VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
-VITE_CLOUDINARY_UPLOAD_PRESET=student_upload
+# Note: Wasabi credentials are now handled securely via Supabase Edge Functions
+# No client-side credentials needed for file storage
 ```
 
 ### 4. Database Setup
@@ -267,7 +266,29 @@ Run the Supabase migrations:
 # Apply them through Supabase CLI or dashboard
 ```
 
-### 5. Start Development Server
+### 5. Supabase Edge Functions Setup
+Deploy the Edge Functions for secure file operations:
+```bash
+# Deploy file upload function
+supabase functions deploy upload-file
+
+# Deploy signed URL generation function  
+supabase functions deploy get-signed-url
+
+# Deploy file deletion function
+supabase functions deploy delete-file
+```
+
+Set the required environment variables in Supabase:
+```bash
+# Set Wasabi credentials as Supabase secrets
+supabase secrets set WASABI_ACCESS_KEY_ID=your_wasabi_access_key
+supabase secrets set WASABI_SECRET_ACCESS_KEY=your_wasabi_secret_key
+supabase secrets set WASABI_BUCKET_NAME=your_wasabi_bucket_name
+supabase secrets set WASABI_REGION=your_wasabi_region
+```
+
+### 6. Start Development Server
 ```bash
 npm run dev
 ```
@@ -324,15 +345,19 @@ The system supports full bilingual functionality:
 2. Run the provided migrations
 3. Configure authentication providers
 4. Set up Row Level Security policies
+5. Deploy Edge Functions for secure file operations
+6. Configure Wasabi credentials as Supabase secrets
 
-### Cloudinary Setup
-1. Create a Cloudinary account
-2. Get your cloud name from the dashboard
-3. Create an unsigned upload preset named 'student_upload'
-4. Configure upload settings and security
+### Wasabi Setup
+1. Create a Wasabi account
+2. Create a storage bucket
+3. Generate access keys
+4. Configure credentials in Supabase secrets (never in frontend)
+5. Set appropriate bucket permissions
 
 ### Environment Variables
 All configuration is handled through environment variables for security and flexibility.
+File storage credentials are securely managed via Supabase Edge Functions.
 
 ---
 

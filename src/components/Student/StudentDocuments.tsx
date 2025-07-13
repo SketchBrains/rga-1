@@ -148,8 +148,8 @@ const StudentDocuments: React.FC = () => {
 
   const handleDownloadDocument = async (document: any) => {
     try {
-      if (!isClient || typeof document === 'undefined' || typeof document.createElement !== 'function') {
-        console.error('Cannot download: document API is not available');
+      if (!isClient) {
+        console.error('Cannot download: not running in client environment');
         toast.error('Download not supported in this environment');
         return;
       }
@@ -167,12 +167,12 @@ const StudentDocuments: React.FC = () => {
 
       console.log('Initiating download for:', document.file_name, { downloadUrl });
 
-      const link = document.createElement('a');
+      const link = window.document.createElement('a');
       link.href = downloadUrl;
       link.download = document.file_name;
-      document.body.appendChild(link);
+      window.document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      window.document.body.removeChild(link);
       
       toast.success('Download started');
     } catch (error) {

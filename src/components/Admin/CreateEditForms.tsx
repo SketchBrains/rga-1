@@ -225,11 +225,69 @@ const CreateEditForms: React.FC = () => {
 
         if (error) throw error
 
-        // Delete existing fields
-        await supabase
-          .from('form_fields')
-          .delete()
-          .eq('form_id', editingForm.id)
+        // Improved field management: only update what changed
+        const existingFields = editingForm.form_fields || []
+        const currentFields = formData.fields
+        
+        // Find fields to delete (exist in DB but not in current form)
+        const fieldsToDelete = existingFields.filter(existing => 
+          !currentFields.find(current => current.id === existing.id)
+        )
+        
+        // Find fields to update (exist in both with same ID)
+        const fieldsToUpdate = currentFields.filter(current => 
+          current.id && existingFields.find(existing => existing.id === current.id)
+        )
+        
+        // Find fields to insert (new fields without ID)
+        const fieldsToInsert = currentFields.filter(current => !current.id)
+        
+        // Delete removed fields
+        if (fieldsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('form_fields')
+            .delete()
+            .in('id', fieldsToDelete.map(f => f.id))
+          if (deleteError) throw deleteError
+        }
+        
+        // Update existing fields
+        for (const field of fieldsToUpdate) {
+          const { error: updateError } = await supabase
+            .from('form_fields')
+            .update({
+              field_name: field.field_name,
+              field_label: field.field_label,
+              field_label_hindi: field.field_label_hindi || null,
+              field_type: field.field_type,
+              field_options: field.field_options ? field.field_options : null,
+              is_required: field.is_required,
+              validation_rules: field.validation_rules || null,
+              sort_order: field.sort_order
+            })
+            .eq('id', field.id)
+          if (updateError) throw updateError
+        }
+        
+        // Insert new fields
+        if (fieldsToInsert.length > 0) {
+          const fieldsData = fieldsToInsert.map((field, index) => ({
+            form_id: formId,
+            field_name: field.field_name,
+            field_label: field.field_label,
+            field_label_hindi: field.field_label_hindi || null,
+            field_type: field.field_type,
+            field_options: field.field_options ? field.field_options : null,
+            is_required: field.is_required,
+            validation_rules: field.validation_rules || null,
+            sort_order: field.sort_order
+          }))
+          
+          const { error: insertError } = await supabase
+            .from('form_fields')
+            .insert(fieldsData)
+          if (insertError) throw insertError
+        }
       } else {
         // Create new form
         const { data, error } = await supabase
@@ -248,27 +306,27 @@ const CreateEditForms: React.FC = () => {
 
         if (error) throw error
         formId = data.id
-      }
 
-      // Insert new fields
-      if (formData.fields.length > 0) {
-        const fieldsToInsert = formData.fields.map((field, index) => ({
-          form_id: formId,
-          field_name: field.field_name,
-          field_label: field.field_label,
-          field_label_hindi: field.field_label_hindi || null,
-          field_type: field.field_type,
-          field_options: field.field_options ? field.field_options : null,
-          is_required: field.is_required,
-          validation_rules: field.validation_rules || null,
-          sort_order: index
-        }))
+        // Insert fields for new form
+        if (formData.fields.length > 0) {
+          const fieldsToInsert = formData.fields.map((field, index) => ({
+            form_id: formId,
+            field_name: field.field_name,
+            field_label: field.field_label,
+            field_label_hindi: field.field_label_hindi || null,
+            field_type: field.field_type,
+            field_options: field.field_options ? field.field_options : null,
+            is_required: field.is_required,
+            validation_rules: field.validation_rules || null,
+            sort_order: index
+          }))
 
-        const { error: fieldsError } = await supabase
-          .from('form_fields')
-          .insert(fieldsToInsert)
+          const { error: fieldsError } = await supabase
+            .from('form_fields')
+            .insert(fieldsToInsert)
 
-        if (fieldsError) throw fieldsError
+          if (fieldsError) throw fieldsError
+        }
       }
 
       toast.success(editingForm ? 'Form updated successfully' : 'Form created successfully')
@@ -277,7 +335,20 @@ const CreateEditForms: React.FC = () => {
       fetchForms()
     } catch (error) {
       console.error('Error saving form:', error)
-      toast.error('Failed to save form')
+      // Enhanced error handling
+      let errorMessage = 'Failed to save form'
+      if (error.message) {
+        if (error.message.includes('duplicate key')) {
+          errorMessage = 'A form with this name already exists'
+        } else if (error.message.includes('foreign key')) {
+          errorMessage = 'Invalid form configuration. Please check your inputs.'
+        } else if (error.message.includes('permission')) {
+          errorMessage = 'You do not have permission to perform this action'
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      toast.error(errorMessage)
     } finally {
       setSaving(false)
     }

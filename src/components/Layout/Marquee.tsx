@@ -2,6 +2,17 @@ import React, { useEffect } from 'react'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 
+// Utility function to sanitize text content
+const sanitizeText = (text: string): string => {
+  // Basic XSS prevention - remove potentially dangerous characters
+  return text
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+}
+
 const Marquee: React.FC = () => {
   const { announcements, fetchAnnouncements } = useData()
   const { language } = useLanguage()
@@ -23,10 +34,10 @@ const Marquee: React.FC = () => {
                 NEW
               </span>
               <span className="text-sm sm:text-base">
-                {language === 'hindi' && announcement.message_hindi 
+                {sanitizeText(language === 'hindi' && announcement.message_hindi 
                   ? announcement.message_hindi 
                   : announcement.message
-                }
+                )}
               </span>
             </span>
           ))}
@@ -43,10 +54,10 @@ const Marquee: React.FC = () => {
                 NEW
               </span>
               <span className="text-sm sm:text-base">
-                {language === 'hindi' && announcement.message_hindi 
+                {sanitizeText(language === 'hindi' && announcement.message_hindi 
                   ? announcement.message_hindi 
                   : announcement.message
-                }
+                )}
               </span>
             </span>
           ))}

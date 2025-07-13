@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import SkeletonCard from '../common/SkeletonCard'
 import { 
   GraduationCap, 
   Calendar, 
@@ -257,7 +258,13 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-            {availableForms.slice(0, 6).map((form) => {
+            {isLoading ? (
+              // Show skeleton cards while loading
+              Array.from({ length: 3 }).map((_, index) => (
+                <SkeletonCard key={index} showImage={false} />
+              ))
+            ) : (
+              availableForms.slice(0, 6).map((form) => {
               const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title
               const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description
 
@@ -299,7 +306,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
                   </div>
                 </div>
               )
-            })}
+              })
+            )}
           </div>
         )}
       </div>
@@ -327,7 +335,13 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            {applications.slice(0, 4).map((application) => {
+            {isLoading ? (
+              // Show skeleton cards while loading
+              Array.from({ length: 2 }).map((_, index) => (
+                <SkeletonCard key={index} showImage={false} showButton={false} />
+              ))
+            ) : (
+              applications.slice(0, 4).map((application) => {
               const title = language === 'hindi' && application.scholarship_forms?.title_hindi 
                 ? application.scholarship_forms.title_hindi 
                 : application.scholarship_forms?.title
@@ -359,7 +373,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
                   </div>
                 </div>
               )
-            })}
+              })
+            )}
           </div>
         </div>
       )}

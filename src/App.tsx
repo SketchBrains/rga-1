@@ -21,6 +21,7 @@ import ViewApplications from './components/Admin/ViewApplications'
 import StudentDetail from './components/Admin/StudentDetail'
 import MarqueeEditor from './components/Admin/MarqueeEditor'
 import ExportData from './components/Admin/ExportData'
+import UserManagement from './components/Admin/UserManagement'
 
 const AppContent: React.FC = () => {
   const { user, loading, signOut } = useAuth()
@@ -84,6 +85,8 @@ const AppContent: React.FC = () => {
           return <MarqueeEditor />
         case 'export':
           return <ExportData />
+        case 'user-management':
+          return <UserManagement />
         default:
           return <AdminDashboard onNavigate={setActiveTab} />
       }
