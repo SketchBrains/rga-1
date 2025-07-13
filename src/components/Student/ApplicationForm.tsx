@@ -121,11 +121,11 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       }
 
       // Upload file to Wasabi
-      const { fileUrl, fileKey } = await uploadToWasabi(file, user?.id || '');
+      const { fileKey } = await uploadToWasabi(file, user?.id || '');
 
       setUploadedFiles((prev) => ({
         ...prev,
-        [fieldId]: fileUrl,
+        [fieldId]: fileKey,
       }));
 
       handleInputChange(fieldId, file);
@@ -290,15 +290,16 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       console.error('Error submitting application:', error)
       // Enhanced error handling
       let errorMessage = 'Failed to submit application'
-      if (error.message) {
-        if (error.message.includes('duplicate key') || error.message.includes('already submitted')) {
+      if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
+        const errMsg = (error as any).message;
+        if (errMsg.includes('duplicate key') || errMsg.includes('already submitted')) {
           errorMessage = 'You have already submitted an application for this scholarship.'
-        } else if (error.message.includes('Network')) {
+        } else if (errMsg.includes('Network')) {
           errorMessage = 'Network error. Please check your internet connection and try again.'
-        } else if (error.message.includes('permission')) {
+        } else if (errMsg.includes('permission')) {
           errorMessage = 'You do not have permission to submit this application. Please contact support.'
         } else {
-          errorMessage = error.message
+          errorMessage = errMsg
         }
       }
       toast.error(errorMessage)
@@ -450,6 +451,116 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
 
   const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title
   const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description
+
+  async function saveAsDraft(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): Promise<void> {
+    event.preventDefault();
+    if (!user || !profile) {
+      toast.error('Please complete your profile first. Go to your profile settings to add required information.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Create or update a draft application
+      // Check if a draft already exists for this form and user
+      const { data: existingDraft, error: fetchError } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('form_id', form.id)
+        .eq('student_id', user.id)
+        .eq('status', 'draft')
+        .single();
+
+      let applicationId: string;
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // Not found is okay, but other errors should throw
+        throw fetchError;
+      }
+
+      if (existingDraft) {
+        // Update the draft application
+        const { error: updateError } = await supabase
+          .from('applications')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', existingDraft.id);
+
+        if (updateError) throw updateError;
+        applicationId = existingDraft.id;
+      } else {
+        // Insert a new draft application
+        const { data: newDraft, error: insertError } = await supabase
+          .from('applications')
+          .insert({
+            form_id: form.id,
+            student_id: user.id,
+            status: 'draft'
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        applicationId = newDraft.id;
+      }
+
+      // Upsert responses for the draft
+      const responsesToSave = Object.entries(responses)
+        .filter(([_, value]) => value && value !== '')
+        .map(([fieldId, value]) => ({
+          application_id: applicationId,
+          field_id: fieldId,
+          response_value: typeof value === 'string' ? value : (value ? value.name : '')
+        }));
+
+      if (responsesToSave.length > 0) {
+        // Delete previous responses for this draft
+        await supabase
+          .from('application_responses')
+          .delete()
+          .eq('application_id', applicationId);
+
+        // Insert new responses
+        const { error: responseError } = await supabase
+          .from('application_responses')
+          .insert(responsesToSave);
+
+        if (responseError) throw responseError;
+      }
+
+      // Save uploaded files for the draft
+      const filesToSave = Object.entries(uploadedFiles).map(([fieldId, fileUrl]) => ({
+        application_id: applicationId,
+        field_id: fieldId,
+        file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
+        file_url: fileUrl,
+        file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
+        file_size: (responses[fieldId] as File)?.size || 0,
+        uploaded_by: user.id
+      }));
+
+      if (filesToSave.length > 0) {
+        // Delete previous files for this draft
+        await supabase
+          .from('documents')
+          .delete()
+          .eq('application_id', applicationId);
+
+        // Insert new files
+        const { error: fileError } = await supabase
+          .from('documents')
+          .insert(filesToSave);
+
+        if (fileError) throw fileError;
+      }
+
+      toast.success('Draft saved successfully!');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      toast.error('Failed to save draft. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto">

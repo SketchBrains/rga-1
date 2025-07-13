@@ -257,7 +257,8 @@ const ExportData: React.FC = () => {
 
       // Group by form and status
       const summary = data?.reduce((acc: any, app) => {
-        const formTitle = app.scholarship_forms?.title || 'Unknown Form'
+        const formObj = Array.isArray(app.scholarship_forms) ? app.scholarship_forms[0] : app.scholarship_forms
+        const formTitle = formObj?.title || 'Unknown Form'
         if (!acc[formTitle]) {
           acc[formTitle] = {
             total: 0,
@@ -265,7 +266,7 @@ const ExportData: React.FC = () => {
             approved: 0,
             rejected: 0,
             hold: 0,
-            education_level: app.scholarship_forms?.education_level || ''
+            education_level: formObj?.education_level || ''
           }
         }
         acc[formTitle].total++

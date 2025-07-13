@@ -43,6 +43,7 @@ interface ScholarshipForm {
   education_level: string
   is_active: boolean
   fields: FormField[]
+  form_fields?: FormField[] // Add this line to match the data shape from Supabase
 }
 
 const CreateEditForms: React.FC = () => {
@@ -337,15 +338,16 @@ const CreateEditForms: React.FC = () => {
       console.error('Error saving form:', error)
       // Enhanced error handling
       let errorMessage = 'Failed to save form'
-      if (error.message) {
-        if (error.message.includes('duplicate key')) {
+      if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
+        const errMsg = (error as any).message as string
+        if (errMsg.includes('duplicate key')) {
           errorMessage = 'A form with this name already exists'
-        } else if (error.message.includes('foreign key')) {
+        } else if (errMsg.includes('foreign key')) {
           errorMessage = 'Invalid form configuration. Please check your inputs.'
-        } else if (error.message.includes('permission')) {
+        } else if (errMsg.includes('permission')) {
           errorMessage = 'You do not have permission to perform this action'
         } else {
-          errorMessage = `Error: ${error.message}`
+          errorMessage = `Error: ${errMsg}`
         }
       }
       toast.error(errorMessage)

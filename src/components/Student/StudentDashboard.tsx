@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
@@ -19,8 +18,6 @@ import {
   ArrowRight,
   Plus
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 
 interface StudentDashboardProps {
   onNavigate: (tab: string) => void
@@ -36,7 +33,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
     loadingApplications,
     fetchApplications
   } = useData()
-  const { language, t } = useLanguage()
+  const { language } = useLanguage()
   
   const [stats, setStats] = useState({
     totalApplications: 0,
