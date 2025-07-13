@@ -16,6 +16,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   updateLanguage: (language: 'english' | 'hindi') => Promise<void>
+  refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -502,6 +503,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updatedUser)
   }
 
+  const refreshSession = async () => {
+    try {
+      console.log('🔄 Refreshing session...')
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      if (error) {
+        console.error('❌ Error refreshing session:', error.message)
+        // If session refresh fails, sign out the user
+        await signOut()
+        return
+      }
+
+      if (session?.user) {
+        console.log('✅ Session refreshed successfully')
+        setSession(session)
+        // Re-fetch user data to ensure it's up to date
+        await fetchUserData(session.user)
+      } else {
+        console.log('❌ No valid session found, signing out...')
+        await signOut()
+      }
+    } catch (error) {
+      console.error('❌ Error during session refresh:', error)
+      await signOut()
+    }
+  }
   const value = {
     user,
     profile,
@@ -516,6 +543,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetPassword,
     updateProfile,
     updateLanguage,
+    refreshSession,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

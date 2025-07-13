@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
-import { DataProvider } from './contexts/DataContext'
+import { DataProvider, useData } from './contexts/DataContext'
+import { usePageVisibilityCallback } from './hooks/usePageVisibility'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
 import ResetPasswordForm from './components/Auth/ResetPasswordForm'
@@ -24,13 +25,30 @@ import ExportData from './components/Admin/ExportData'
 import UserManagement from './components/Admin/UserManagement'
 
 const AppContent: React.FC = () => {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading, signOut, refreshSession } = useAuth()
+  const { refreshData } = useData()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showAuth, setShowAuth] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
 
   console.log('🔍 AppContent render - user:', user?.id, 'role:', user?.role, 'loading:', loading, 'path:', location.pathname)
+
+  // Handle page visibility changes to refresh session and data
+  usePageVisibilityCallback(async () => {
+    if (user) {
+      console.log('🔄 Page became visible, refreshing session and data...')
+      try {
+        // First refresh the session
+        await refreshSession()
+        // Then refresh all data
+        await refreshData()
+        console.log('✅ Session and data refreshed successfully')
+      } catch (error) {
+        console.error('❌ Error refreshing session/data on page visibility:', error)
+      }
+    }
+  }, [user])
 
   // Sign out if accessing reset-password or confirm-reset route with an active session
   useEffect(() => {
