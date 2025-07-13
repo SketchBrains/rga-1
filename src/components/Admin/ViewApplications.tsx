@@ -633,7 +633,6 @@ const ViewApplications: React.FC = () => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={3}
                   placeholder="Add notes about this application..."
-                  <p className="text-sm sm:text-base text-blue-800">{sanitizeText(selectedApplication.admin_notes)}</p>
                   id="admin-notes"
                 />
               </div>
