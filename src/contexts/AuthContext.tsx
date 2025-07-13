@@ -517,6 +517,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (session?.user) {
         console.log('✅ Session refreshed successfully')
+        
+        // Explicitly set the session to ensure Supabase client state is fully updated
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token
+        })
+        
+        if (setSessionError) {
+          console.error('❌ Error setting session:', setSessionError.message)
+          await signOut()
+          return
+        }
+        
+        console.log('✅ Session state updated in Supabase client')
         setSession(session)
         // Re-fetch user data to ensure it's up to date
         await fetchUserData(session.user)

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
 import { DataProvider, useData } from './contexts/DataContext'
 import { usePageVisibilityCallback } from './hooks/usePageVisibility'
+import { useAutoLogout } from './hooks/useIdleTimer'
 import LandingPage from './components/Landing/LandingPage'
 import AuthForm from './components/Auth/AuthForm'
 import ResetPasswordForm from './components/Auth/ResetPasswordForm'
@@ -90,8 +91,20 @@ const AuthenticatedApp: React.FC<{
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
 }> = ({ user, activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
-  const { refreshSession } = useAuth()
+  const { refreshSession, signOut } = useAuth()
   const { refreshData } = useData()
+
+  // Auto-logout after 1 hour of inactivity
+  useAutoLogout(60, async () => {
+    console.log('🚪 Auto-logout: User has been inactive for 1 hour')
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('❌ Error during auto-logout:', error)
+      // Force reload if signOut fails
+      window.location.reload()
+    }
+  })
 
   // Handle page visibility changes to refresh session and data
   usePageVisibilityCallback(async () => {
