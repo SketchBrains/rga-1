@@ -26,29 +26,12 @@ import UserManagement from './components/Admin/UserManagement'
 
 const AppContent: React.FC = () => {
   const { user, loading, signOut, refreshSession } = useAuth()
-  const { refreshData } = useData()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showAuth, setShowAuth] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
 
   console.log('🔍 AppContent render - user:', user?.id, 'role:', user?.role, 'loading:', loading, 'path:', location.pathname)
-
-  // Handle page visibility changes to refresh session and data
-  usePageVisibilityCallback(async () => {
-    if (user) {
-      console.log('🔄 Page became visible, refreshing session and data...')
-      try {
-        // First refresh the session
-        await refreshSession()
-        // Then refresh all data
-        await refreshData()
-        console.log('✅ Session and data refreshed successfully')
-      } catch (error) {
-        console.error('❌ Error refreshing session/data on page visibility:', error)
-      }
-    }
-  }, [user])
 
   // Sign out if accessing reset-password or confirm-reset route with an active session
   useEffect(() => {
@@ -87,6 +70,45 @@ const AppContent: React.FC = () => {
   // User is authenticated, show appropriate dashboard
   console.log('🎉 User is authenticated, role:', user?.role, 'showing dashboard')
   
+  return (
+    <DataProvider>
+      <AuthenticatedApp 
+        user={user}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
+    </DataProvider>
+  )
+}
+
+const AuthenticatedApp: React.FC<{
+  user: any
+  activeTab: string
+  setActiveTab: (tab: string) => void
+  sidebarOpen: boolean
+  setSidebarOpen: (open: boolean) => void
+}> = ({ user, activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
+  const { refreshSession } = useAuth()
+  const { refreshData } = useData()
+
+  // Handle page visibility changes to refresh session and data
+  usePageVisibilityCallback(async () => {
+    if (user) {
+      console.log('🔄 Page became visible, refreshing session and data...')
+      try {
+        // First refresh the session
+        await refreshSession()
+        // Then refresh all data
+        await refreshData()
+        console.log('✅ Session and data refreshed successfully')
+      } catch (error) {
+        console.error('❌ Error refreshing session/data on page visibility:', error)
+      }
+    }
+  }, [user])
+
   const renderContent = () => {
     if (user && user.role === 'admin') {
       console.log('👨‍💼 Rendering admin dashboard, activeTab:', activeTab)
@@ -128,25 +150,23 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <DataProvider>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-        <Marquee />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab}
-            isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-          />
-          <main className="flex-1 overflow-auto">
-            <div className="p-4 sm:p-6">
-              {renderContent()}
-            </div>
-          </main>
-        </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Header onMenuClick={() => setSidebarOpen(true)} />
+      <Marquee />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-auto">
+          <div className="p-4 sm:p-6">
+            {renderContent()}
+          </div>
+        </main>
       </div>
-    </DataProvider>
+    </div>
   )
 }
 
