@@ -94,6 +94,14 @@ const AuthenticatedApp: React.FC<{
   const { refreshSession, signOut } = useAuth()
   const { refreshData } = useData()
 
+  // Refresh data whenever the active tab changes
+  useEffect(() => {
+    console.log('🔄 Tab changed to:', activeTab, '- Refreshing all data...')
+    refreshData().catch(error => {
+      console.error('❌ Error refreshing data on tab change:', error)
+    })
+  }, [activeTab, refreshData])
+
   // Auto-logout after 1 hour of inactivity
   useAutoLogout(60, async () => {
     console.log('🚪 Auto-logout: User has been inactive for 1 hour')
