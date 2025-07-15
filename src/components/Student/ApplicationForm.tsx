@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
-import { useLanguage } from '../../contexts/LanguageContext'
-import { User, Profile } from '../../lib/supabase' // Import User and Profile types
-import { Session } from '@supabase/supabase-js' // Import Session type
-
-import { uploadToWasabi } from '../../lib/wasabi'
-import FileLibrary from './FileLibrary'
-import { 
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { User, Profile } from '../../lib/supabase'; // Import User and Profile types
+import { Session } from '@supabase/supabase-js'; // Import Session type
+import { uploadToWasabi } from '../../lib/wasabi';
+import FileLibrary from './FileLibrary';
+import {
   ArrowLeft,
   Save,
   Send,
@@ -23,40 +22,46 @@ import {
   Type,
   List,
   AlignLeft,
-  FolderOpen
-} from 'lucide-react'
-import toast from 'react-hot-toast'
+  FolderOpen,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface ApplicationFormProps {
-  form: any
-  onBack: () => void
-  onSuccess: (applicationId: string) => void // Pass application ID on success
+  form: any;
+  onBack: () => void;
+  onSuccess: (applicationId: string) => void; // Pass application ID on success
   currentUser: User | null;
   currentProfile: Profile | null;
 }
 
 interface FormResponse {
-  [fieldId: string]: string | File | null
+  [fieldId: string]: string | File | null;
 }
 
-const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSuccess, currentUser, currentProfile }) => {
-  const { getSession } = useAuth() // Use getSession for on-demand fetching
+const ApplicationForm: React.FC<ApplicationFormProps> = ({
+  form,
+  onBack,
+  onSuccess,
+  currentUser,
+  currentProfile,
+}) => {
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
   // Use currentUser and currentProfile from props
   const user = currentUser;
   const profile = currentProfile;
 
-  const { language } = useLanguage()
-  
-  const [formFields, setFormFields] = useState<any[]>([])
-  const [responses, setResponses] = useState<FormResponse>({})
-  const [uploadedFiles, setUploadedFiles] = useState<{ [fieldId: string]: string }>({})
-  const [selectedExistingFiles, setSelectedExistingFiles] = useState<{ [fieldId: string]: any }>({})
-  const [showFileLibrary, setShowFileLibrary] = useState(false)
-  const [currentFileFieldId, setCurrentFileFieldId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [errors, setErrors] = useState<{ [fieldId: string]: string }>({})
+  const { language } = useLanguage();
+
+  const [formFields, setFormFields] = useState<any[]>([]);
+  const [responses, setResponses] = useState<FormResponse>({});
+  const [uploadedFiles, setUploadedFiles] = useState<{ [fieldId: string]: string }>({});
+  const [selectedExistingFiles, setSelectedExistingFiles] = useState<{ [fieldId: string]: any }>({});
+  const [showFileLibrary, setShowFileLibrary] = useState(false);
+  const [currentFileFieldId, setCurrentFileFieldId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<{ [fieldId: string]: string }>({});
 
   useEffect(() => {
     if (!user) {
@@ -64,54 +69,57 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       onBack(); // Go back if no user
       return;
     }
-    fetchFormFields()
-  }, [form.id])
+    fetchFormFields();
+  }, [form.id, user, onBack]);
 
   const fetchFormFields = async () => {
     try {
+      // Ensure session is valid before fetching
+      const { session } = await getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        onBack();
+        return;
+      }
+
       const { data, error } = await supabase
         .from('form_fields')
-        const { session } = await getSession(); // Ensure session is valid before fetching
-        if (!session) {
-          toast.error('Session expired. Please log in again.');
-          onBack();
-          return;
-        }
         .select('*')
         .eq('form_id', form.id)
-        .order('sort_order', { ascending: true })
+        .order('sort_order', { ascending: true });
 
-      if (error) throw error
-      setFormFields(data || [])
-      
+      if (error) throw error;
+
+      setFormFields(data || []);
+
       // Initialize responses with empty values
-      const initialResponses: FormResponse = {}
-      data?.forEach(field => {
-        initialResponses[field.id] = ''
-      })
-      setResponses(initialResponses)
+      const initialResponses: FormResponse = {};
+      data?.forEach((field) => {
+        initialResponses[field.id] = '';
+      });
+      setResponses(initialResponses);
     } catch (error) {
-      console.error('Error fetching form fields:', error)
-      toast.error('Failed to load form fields')
+      console.error('Error fetching form fields:', error);
+      toast.error('Failed to load form fields');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleInputChange = (fieldId: string, value: string | File) => {
-    setResponses(prev => ({
+    setResponses((prev) => ({
       ...prev,
-      [fieldId]: value
-    }))
-    
+      [fieldId]: value,
+    }));
+
     // Clear error when user starts typing
     if (errors[fieldId]) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
-        [fieldId]: ''
-      }))
+        [fieldId]: '',
+      }));
     }
-  }
+  };
 
   const handleFileUpload = async (fieldId: string, file: File) => {
     try {
@@ -152,76 +160,76 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       console.error('Error uploading file to Wasabi:', error);
       toast.error('Failed to upload file');
     }
-  }
+  };
 
   const handleSelectExistingFile = (document: any) => {
-    if (!currentFileFieldId) return
+    if (!currentFileFieldId) return;
 
     // Store the selected document metadata
-    setSelectedExistingFiles(prev => ({
+    setSelectedExistingFiles((prev) => ({
       ...prev,
-      [currentFileFieldId]: document
-    }))
+      [currentFileFieldId]: document,
+    }));
 
     // Update the response with the file URL
-    handleInputChange(currentFileFieldId, document.file_url)
+    handleInputChange(currentFileFieldId, document.file_url);
 
     // Close the file library
-    setShowFileLibrary(false)
-    setCurrentFileFieldId(null)
+    setShowFileLibrary(false);
+    setCurrentFileFieldId(null);
 
-    toast.success('File selected from library')
-  }
+    toast.success('File selected from library');
+  };
 
   const handleOpenFileLibrary = (fieldId: string) => {
-    setCurrentFileFieldId(fieldId)
-    setShowFileLibrary(true)
-  }
+    setCurrentFileFieldId(fieldId);
+    setShowFileLibrary(true);
+  };
 
   const validateForm = (): boolean => {
-    const newErrors: { [fieldId: string]: string } = {}
-    let isValid = true
+    const newErrors: { [fieldId: string]: string } = {};
+    let isValid = true;
 
-    formFields.forEach(field => {
+    formFields.forEach((field) => {
       if (field.is_required) {
-        const value = responses[field.id]
+        const value = responses[field.id];
         if (!value || (typeof value === 'string' && value.trim() === '')) {
-          newErrors[field.id] = `${field.field_label} is required`
-          isValid = false
+          newErrors[field.id] = `${field.field_label} is required`;
+          isValid = false;
         }
       }
 
       // Additional validation based on field type
-      const value = responses[field.id] as string
+      const value = responses[field.id] as string;
       if (value && typeof value === 'string') {
         switch (field.field_type) {
           case 'email':
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(value)) {
-              newErrors[field.id] = 'Please enter a valid email address'
-              isValid = false
+              newErrors[field.id] = 'Please enter a valid email address';
+              isValid = false;
             }
-            break
+            break;
           case 'phone':
-            const phoneRegex = /^[0-9]{10}$/
+            const phoneRegex = /^[0-9]{10}$/;
             if (!phoneRegex.test(value.replace(/\D/g, ''))) {
-              newErrors[field.id] = 'Please enter a valid 10-digit phone number'
-              isValid = false
+              newErrors[field.id] = 'Please enter a valid 10-digit phone number';
+              isValid = false;
             }
-            break
+            break;
           case 'number':
             if (isNaN(Number(value))) {
-              newErrors[field.id] = 'Please enter a valid number'
-              isValid = false
+              newErrors[field.id] = 'Please enter a valid number';
+              isValid = false;
             }
-            break
+            break;
         }
       }
-    })
+    });
 
-    setErrors(newErrors)
-    return isValid
-  }
+    setErrors(newErrors);
+    return isValid;
+  };
 
   const submitApplication = async () => {
     const { session, user: sessionUser, profile: sessionProfile } = await getSession();
@@ -231,36 +239,35 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       return;
     }
 
-    if (!sessionProfile.full_name || !sessionProfile.phone) { // Example: check for required profile fields
-      toast.error('Please complete your profile first. Go to your profile settings to add required information.')
-      return
+    if (!sessionProfile.full_name || !sessionProfile.phone) {
+      toast.error('Please complete your profile first. Go to your profile settings to add required information.');
+      return;
     }
 
-    if (!validateForm()) { // Validate form fields
-      toast.error('Please fill in all required fields correctly. Check for any highlighted errors above.')
-      return
+    if (!validateForm()) {
+      toast.error('Please fill in all required fields correctly. Check for any highlighted errors above.');
+      return;
     }
 
-    setSubmitting(true)
+    setSubmitting(true);
     try {
       // Create application
       const { data: application, error: appError } = await supabase
         .from('applications')
         .insert({
-          form_id: form.id, // Use form ID from props
-          student_id: sessionUser.id, // Use user ID from fetched session
-          status: 'pending'
+          form_id: form.id,
+          student_id: sessionUser.id,
+          status: 'pending',
         })
         .select()
-        .single()
+        .single();
 
       if (appError) {
         console.error('Supabase application insert error:', appError);
-        // Enhanced error handling for application submission
         if (appError.message.includes('duplicate key')) {
-          throw new Error('You have already submitted an application for this scholarship. Each student can only apply once per scholarship.')
+          throw new Error('You have already submitted an application for this scholarship.');
         } else if (appError.message.includes('foreign key')) {
-          throw new Error('Invalid form or user data. Please refresh the page and try again.')
+          throw new Error('Invalid form or user data. Please refresh the page and try again.');
         }
         throw appError;
       }
@@ -270,14 +277,14 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         .filter(([_, value]) => value && value !== '')
         .map(([fieldId, value]) => ({
           application_id: application.id,
-          field_id: fieldId, // Use field ID from form fields
-          response_value: typeof value === 'string' ? value : (value ? value.name : '')
-        }))
+          field_id: fieldId,
+          response_value: typeof value === 'string' ? value : (value ? value.name : ''),
+        }));
 
       if (responsesToSave.length > 0) {
         const { error: responseError } = await supabase
           .from('application_responses')
-          .insert(responsesToSave)
+          .insert(responsesToSave);
 
         if (responseError) {
           console.error('Supabase response insert error:', responseError);
@@ -289,17 +296,17 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       const filesToSave = Object.entries(uploadedFiles).map(([fieldId, fileUrl]) => ({
         application_id: application.id,
         field_id: fieldId,
-        file_name: (responses[fieldId] as File)?.name || 'uploaded_file', // Use file name from responses
+        file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
         file_url: fileUrl,
         file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
-        file_size: (responses[fieldId] as File)?.size || 0, // Use file size from responses
-        uploaded_by: sessionUser.id // Use user ID from fetched session
-      }))
+        file_size: (responses[fieldId] as File)?.size || 0,
+        uploaded_by: sessionUser.id,
+      }));
 
       if (filesToSave.length > 0) {
         const { error: fileError } = await supabase
           .from('documents')
-          .insert(filesToSave)
+          .insert(filesToSave);
 
         if (fileError) {
           console.error('Supabase document insert error:', fileError);
@@ -308,54 +315,176 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         }
       }
 
-      toast.success('Application submitted successfully! You will receive email updates about your application status.')
-      onSuccess(application.id) // Pass application ID on success
+      toast.success('Application submitted successfully! You will receive email updates about your application status.');
+      onSuccess(application.id);
     } catch (error) {
-      console.error('Error submitting application:', error)
-      // Enhanced error handling
-      let errorMessage = 'Failed to submit application'
-      if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
-        const errMsg = (error as any).message;
+      console.error('Error submitting application:', error);
+      let errorMessage = 'Failed to submit application';
+      if (error instanceof Error) {
+        const errMsg = error.message;
         if (errMsg.includes('duplicate key') || errMsg.includes('already submitted')) {
-          errorMessage = 'You have already submitted an application for this scholarship.'
+          errorMessage = 'You have already submitted an application for this scholarship.';
         } else if (errMsg.includes('Network')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.'
+          errorMessage = 'Network error. Please check your internet connection and try again.';
         } else if (errMsg.includes('permission')) {
-          errorMessage = 'You do not have permission to submit this application. Please contact support.'
+          errorMessage = 'You do not have permission to submit this application. Please contact support.';
         } else {
-          errorMessage = errMsg
+          errorMessage = errMsg;
         }
       }
-      toast.error(errorMessage)
+      toast.error(errorMessage);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
+
+  const saveAsDraft = async (event: React.MouseEvent<HTMLButtonElement, MouseEvent>): Promise<void> => {
+    event.preventDefault();
+
+    const { session, user: sessionUser, profile: sessionProfile } = await getSession();
+    if (!session || !sessionUser || !sessionProfile) {
+      toast.error('Session expired. Please log in again.');
+      onBack();
+      return;
+    }
+
+    if (!sessionProfile.full_name || !sessionProfile.phone) {
+      toast.error('Please complete your profile first. Go to your profile settings to add required information.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Check if a draft already exists
+      const { data: existingDraft, error: fetchError } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('form_id', form.id)
+        .eq('student_id', sessionUser.id)
+        .eq('status', 'draft')
+        .single();
+
+      let applicationId: string;
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      if (existingDraft) {
+        // Update the draft application
+        const { error: updateError } = await supabase
+          .from('applications')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', existingDraft.id);
+
+        if (updateError) throw updateError;
+        applicationId = existingDraft.id;
+      } else {
+        // Insert a new draft application
+        const { data: newDraft, error: insertError } = await supabase
+          .from('applications')
+          .insert({
+            form_id: form.id,
+            student_id: sessionUser.id,
+            status: 'draft',
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        applicationId = newDraft.id;
+      }
+
+      // Upsert responses for the draft
+      const responsesToSave = Object.entries(responses)
+        .filter(([_, value]) => value && value !== '')
+        .map(([fieldId, value]) => ({
+          application_id: applicationId,
+          field_id: fieldId,
+          response_value: typeof value === 'string' ? value : (value ? value.name : ''),
+        }));
+
+      if (responsesToSave.length > 0) {
+        // Delete previous responses for this draft
+        await supabase
+          .from('application_responses')
+          .delete()
+          .eq('application_id', applicationId);
+
+        // Insert new responses
+        const { error: responseError } = await supabase
+          .from('application_responses')
+          .insert(responsesToSave);
+
+        if (responseError) throw responseError;
+      }
+
+      // Save uploaded files for the draft
+      const filesToSave = Object.entries(uploadedFiles).map(([fieldId, fileUrl]) => ({
+        application_id: applicationId,
+        field_id: fieldId,
+        file_name: (responses[fieldId] as File)?.name || 'uploaded_file',
+        file_url: fileUrl,
+        file_type: (responses[fieldId] as File)?.type || 'application/octet-stream',
+        file_size: (responses[fieldId] as File)?.size || 0,
+        uploaded_by: sessionUser.id,
+      }));
+
+      if (filesToSave.length > 0) {
+        // Delete previous files for this draft
+        await supabase
+          .from('documents')
+          .delete()
+          .eq('application_id', applicationId);
+
+        // Insert new files
+        const { error: fileError } = await supabase
+          .from('documents')
+          .insert(filesToSave);
+
+        if (fileError) throw fileError;
+      }
+
+      toast.success('Draft saved successfully!');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      toast.error('Failed to save draft. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
-      case 'text': return <Type className="w-4 h-4" />
-      case 'number': return <Hash className="w-4 h-4" />
-      case 'email': return <Mail className="w-4 h-4" />
-      case 'phone': return <Phone className="w-4 h-4" />
-      case 'date': return <Calendar className="w-4 h-4" />
-      case 'file': return <FileText className="w-4 h-4" />
-      case 'select': return <List className="w-4 h-4" />
-      case 'textarea': return <AlignLeft className="w-4 h-4" />
-      default: return <Type className="w-4 h-4" />
+      case 'text':
+        return <Type className="w-4 h-4" />;
+      case 'number':
+        return <Hash className="w-4 h-4" />;
+      case 'email':
+        return <Mail className="w-4 h-4" />;
+      case 'phone':
+        return <Phone className="w-4 h-4" />;
+      case 'date':
+        return <Calendar className="w-4 h-4" />;
+      case 'file':
+        return <FileText className="w-4 h-4" />;
+      case 'select':
+        return <List className="w-4 h-4" />;
+      case 'textarea':
+        return <AlignLeft className="w-4 h-4" />;
+      default:
+        return <Type className="w-4 h-4" />;
     }
-  }
+  };
 
   const renderField = (field: any) => {
-    const fieldLabel = language === 'hindi' && field.field_label_hindi 
-      ? field.field_label_hindi 
-      : field.field_label
-    const value = responses[field.id] || ''
-    const error = errors[field.id]
+    const fieldLabel = language === 'hindi' && field.field_label_hindi ? field.field_label_hindi : field.field_label;
+    const value = responses[field.id] || '';
+    const error = errors[field.id];
 
     const baseInputClasses = `w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
       error ? 'border-red-500' : 'border-gray-300'
-    }`
+    }`;
 
     switch (field.field_type) {
       case 'text':
@@ -369,7 +498,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             className={baseInputClasses}
             placeholder={`Enter ${fieldLabel.toLowerCase()}`}
           />
-        )
+        );
 
       case 'number':
         return (
@@ -380,7 +509,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             className={baseInputClasses}
             placeholder={`Enter ${fieldLabel.toLowerCase()}`}
           />
-        )
+        );
 
       case 'date':
         return (
@@ -390,7 +519,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             onChange={(e) => handleInputChange(field.id, e.target.value)}
             className={baseInputClasses}
           />
-        )
+        );
 
       case 'textarea':
         return (
@@ -401,7 +530,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             rows={4}
             placeholder={`Enter ${fieldLabel.toLowerCase()}`}
           />
-        )
+        );
 
       case 'select':
         return (
@@ -415,7 +544,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
               <option key={index} value={option}>{option}</option>
             ))}
           </select>
-        )
+        );
 
       case 'file':
         return (
@@ -423,9 +552,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             <input
               type="file"
               onChange={(e) => {
-                const file = e.target.files?.[0]
+                const file = e.target.files?.[0];
                 if (file) {
-                  handleFileUpload(field.id, file)
+                  handleFileUpload(field.id, file);
                 }
               }}
               className="hidden"
@@ -450,7 +579,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
               </div>
             )}
           </div>
-        )
+        );
 
       default:
         return (
@@ -461,137 +590,20 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             className={baseInputClasses}
             placeholder={`Enter ${fieldLabel.toLowerCase()}`}
           />
-        )
+        );
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
-    )
+    );
   }
 
-  const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title
-  const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description
-
-  const saveAsDraft = async (event: React.MouseEvent<HTMLButtonElement, MouseEvent>): Promise<void> => {
-    event.preventDefault(); // Prevent default form submission
-
-    const { session, user: sessionUser, profile: sessionProfile } = await getSession();
-    if (!session || !sessionUser || !sessionProfile) {
-      toast.error('Session expired. Please log in again.');
-      onBack();
-      return;
-    }
-
-    if (!sessionProfile.full_name || !sessionProfile.phone) { // Example: check for required profile fields
-      toast.error('Please complete your profile first. Go to your profile settings to add required information.');
-      return;
-    }
-    setSaving(true);
-    try {
-      // Create or update a draft application
-      // Check if a draft already exists for this form and user
-      const { data: existingDraft, error: fetchError } = await supabase
-        .from('applications')
-        .select('*')
-        .eq('form_id', form.id) // Use form ID from props
-        .eq('student_id', sessionUser.id) // Use user ID from fetched session
-        .eq('status', 'draft')
-        .single();
-
-      let applicationId: string;
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // Not found is okay, but other errors should throw
-        throw fetchError;
-      }
-
-      if (existingDraft) {
-        // Update the draft application
-        const { error: updateError } = await supabase
-          .from('applications')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', existingDraft.id);
-
-        if (updateError) throw updateError;
-        applicationId = existingDraft.id;
-      } else {
-        // Insert a new draft application
-        const { data: newDraft, error: insertError } = await supabase
-          .from('applications')
-          .insert({
-            form_id: form.id, // Use form ID from props
-            student_id: sessionUser.id, // Use user ID from fetched session
-            status: 'draft'
-          })
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-        applicationId = newDraft.id;
-      }
-
-      // Upsert responses for the draft
-      const responsesToSave = Object.entries(responses)
-        .filter(([_, value]) => value && value !== '')
-        .map(([fieldId, value]) => ({
-          application_id: applicationId,
-          field_id: fieldId, // Use field ID from form fields
-          response_value: typeof value === 'string' ? value : (value ? value.name : '')
-        }));
-
-      if (responsesToSave.length > 0) {
-        // Delete previous responses for this draft
-        await supabase
-          .from('application_responses')
-          .delete()
-          .eq('application_id', applicationId);
-
-        // Insert new responses
-        const { error: responseError } = await supabase
-          .from('application_responses')
-          .insert(responsesToSave);
-
-        if (responseError) throw responseError;
-      }
-
-      // Save uploaded files for the draft
-      const filesToSave = Object.entries(uploadedFiles).map(([fieldId, fileUrl]) => ({
-        application_id: applicationId,
-        field_id: fieldId, // Use field ID from form fields
-        file_name: (responses[fieldId] as File)?.name || 'uploaded_file', // Use file name from responses
-        file_url: fileUrl,
-        file_type: (responses[fieldId] as File)?.type || 'application/octet-stream', // Use file type from responses
-        file_size: (responses[fieldId] as File)?.size || 0, // Use file size from responses
-        uploaded_by: sessionUser.id // Use user ID from fetched session
-      }));
-
-      if (filesToSave.length > 0) {
-        // Delete previous files for this draft
-        await supabase
-          .from('documents')
-          .delete()
-          .eq('application_id', applicationId);
-
-        // Insert new files
-        const { error: fileError } = await supabase
-          .from('documents')
-          .insert(filesToSave);
-
-        if (fileError) throw fileError;
-      }
-
-      toast.success('Draft saved successfully!');
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      toast.error('Failed to save draft. Please try again.');
-    } finally {
-      setSaving(false);
-    } 
-  }
+  const title = language === 'hindi' && form.title_hindi ? form.title_hindi : form.title;
+  const description = language === 'hindi' && form.description_hindi ? form.description_hindi : form.description;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -606,7 +618,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             <span>Back to Applications</span>
           </button>
         </div>
-        
+
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{title}</h1>
           <p className="text-gray-600 mb-4">{form.education_level}</p>
@@ -619,11 +631,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
       {/* Form */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="space-y-6">
-          {formFields.map((field, index) => {
-            const fieldLabel = language === 'hindi' && field.field_label_hindi 
-              ? field.field_label_hindi 
-              : field.field_label
-            const error = errors[field.id]
+          {formFields.map((field) => {
+            const fieldLabel = language === 'hindi' && field.field_label_hindi ? field.field_label_hindi : field.field_label;
+            const error = errors[field.id];
 
             return (
               <div key={field.id} className="space-y-2">
@@ -634,9 +644,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
                     {field.is_required && <span className="text-red-500 ml-1">*</span>}
                   </span>
                 </label>
-                
+
                 {renderField(field)}
-                
+
                 {error && (
                   <div className="flex items-center space-x-2 text-sm text-red-600">
                     <AlertCircle className="w-4 h-4" />
@@ -644,7 +654,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
                   </div>
                 )}
               </div>
-            )
+            );
           })}
         </div>
 
@@ -654,7 +664,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
             <AlertCircle className="w-4 h-4" />
             <span>All fields marked with * are required</span>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
             <button
               onClick={saveAsDraft}
@@ -664,7 +674,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
               <Save className="w-4 h-4" />
               <span>{saving ? 'Saving...' : 'Save as Draft'}</span>
             </button>
-            
+
             <button
               onClick={submitApplication}
               disabled={saving || submitting}
@@ -682,13 +692,13 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ form, onBack, onSucce
         <FileLibrary
           onSelectFile={handleSelectExistingFile}
           onClose={() => {
-            setShowFileLibrary(false)
-            setCurrentFileFieldId(null)
+            setShowFileLibrary(false);
+            setCurrentFileFieldId(null);
           }}
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default ApplicationForm
+export default ApplicationForm;
