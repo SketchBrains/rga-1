@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { User } from '../../lib/supabase';
 import { Profile } from '../../lib/supabase';
-import { Globe, LogOut, User, Menu } from 'lucide-react';
+import { Globe, LogOut, User as UserIcon, Menu } from 'lucide-react';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -68,19 +68,19 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, currentUser, currentProfil
               <span className="text-xs sm:text-sm font-medium text-gray-700">
                 {language === 'english' ? 'हिंदी' : 'English'}
               </span>
-              </button>
+            </button>
             {currentUser && (
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                    <User className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
+                    <UserIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
                   </div>
                   <div className="hidden md:block">
                     <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
                       {currentProfile?.full_name || 'User'}
                     </p>
                     <p className="text-xs text-gray-500 capitalize">{currentUser.role}</p>
-                  </div> 
+                  </div>
                 </div>
                 <button
                   onClick={handleSignOut}
