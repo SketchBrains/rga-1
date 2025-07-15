@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { useLanguage } from '../../contexts/LanguageContext'
+import { useLanguage } from '../../contexts/LanguageContext' // Keep for t()
+import { User, Profile } from '../../lib/supabase' // Import User and Profile types
 import { 
   FileText, 
   Image, 
@@ -20,10 +21,14 @@ interface FileLibraryProps {
   onSelectFile: (file: any) => void
   onClose: () => void
   selectedFiles?: string[]
-  multiSelect?: boolean
+  multiSelect?: boolean;
+  currentUser: User | null; // Pass currentUser as prop
+  currentProfile: Profile | null; // Pass currentProfile as prop
 }
 
 const FileLibrary: React.FC<FileLibraryProps> = ({ 
+  currentUser,
+  currentProfile,
   onSelectFile, 
   onClose, 
   selectedFiles = [], 
@@ -38,10 +43,16 @@ const FileLibrary: React.FC<FileLibraryProps> = ({
   const [fileTypeFilter, setFileTypeFilter] = useState('all')
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>(selectedFiles)
 
-  useEffect(() => {
-    fetchDocuments()
-  }, [user])
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
 
+  useEffect(() => {
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+    fetchDocuments()
+  }, [currentUser]) // Re-run when currentUser changes
+  
   useEffect(() => {
     filterDocuments()
   }, [documents, searchTerm, fileTypeFilter])
@@ -49,13 +60,20 @@ const FileLibrary: React.FC<FileLibraryProps> = ({
   const fetchDocuments = async () => {
     if (!user) return
 
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser) {
+      console.error('Unauthorized access to fetch documents');
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('documents')
         .select(`
           *,
           applications (
-            scholarship_forms (title, title_hindi)
+            scholarship_forms (title, title_hindi) // Keep this for related form info
           ),
           form_fields (field_label, field_label_hindi)
         `)

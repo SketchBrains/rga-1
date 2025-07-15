@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { useAuth } from '../../contexts/AuthContext' // Import useAuth
+import { User, Profile } from '../../lib/supabase' // Import User and Profile types
 import { 
   Download, 
   FileText, 
@@ -22,15 +24,17 @@ interface ExportFilters {
   includeDocuments: boolean
 }
 
-const ExportData: React.FC = () => {
+interface ExportDataProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+
+const ExportData: React.FC<ExportDataProps> = ({ currentUser, currentProfile }) => {
   const [forms, setForms] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [stats, setStats] = useState({
-    totalApplications: 0,
-    pendingApplications: 0,
-    approvedApplications: 0,
-    rejectedApplications: 0
-  })
+  const [stats, setStats] = useState({ totalApplications: 0, pendingApplications: 0, approvedApplications: 0, rejectedApplications: 0 });
+  const { t } = useLanguage();
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
   const { t } = useLanguage()
 
   const [filters, setFilters] = useState<ExportFilters>({
@@ -42,6 +46,12 @@ const ExportData: React.FC = () => {
   })
 
   useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      setLoading(false);
+      toast.error('Unauthorized access.');
+      return;
+    }
+
     fetchForms()
     fetchStats()
   }, [])
@@ -49,6 +59,12 @@ const ExportData: React.FC = () => {
   const fetchForms = async () => {
     try {
       const { data, error } = await supabase
+        const { user: sessionUser } = await getSession();
+        if (!sessionUser || sessionUser.role !== 'admin') {
+          console.error('Unauthorized access to fetch forms');
+          return;
+        }
+
         .from('scholarship_forms')
         .select('id, title')
         .order('title')
@@ -63,6 +79,12 @@ const ExportData: React.FC = () => {
 
   const fetchStats = async () => {
     try {
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('Unauthorized access to fetch stats');
+        return;
+      }
+
       const { count: totalApplications } = await supabase
         .from('applications')
         .select('*', { count: 'exact', head: true })
@@ -95,6 +117,12 @@ const ExportData: React.FC = () => {
 
   const buildQuery = () => {
     let query = supabase
+      // No session check here, as it's called by exportToCSV which does the check
+      // This function just builds the query object
+      // The actual execution will happen in exportToCSV
+      // If this function were to be called directly, it would need a session check
+      // For now, it's an internal helper for exportToCSV
+
       .from('applications')
       .select(`
         *,
@@ -135,6 +163,13 @@ const ExportData: React.FC = () => {
     }
 
     setLoading(true)
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to export data');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      setLoading(false);
+      return;
+    }
     try {
       console.log('Starting export with filters:', filters)
       const { data, error } = await buildQuery()
@@ -244,6 +279,13 @@ const ExportData: React.FC = () => {
     }
 
     setLoading(true)
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to export summary');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      setLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('applications')

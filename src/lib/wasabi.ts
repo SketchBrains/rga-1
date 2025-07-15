@@ -1,6 +1,6 @@
 // Secure Wasabi integration using Supabase Edge Functions
 // All sensitive credentials are now handled server-side
-
+import { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase'
 
 // Generate unique file key for organization
@@ -33,15 +33,15 @@ const handleEdgeFunctionError = (result: any, operation: string) => {
 }
 
 // Get current session token for Edge Function calls
-const getSessionToken = async (): Promise<string> => {
+const getSessionToken = async (): Promise<{ token: string; session: Session }> => {
   const { data: { session }, error } = await supabase.auth.getSession()
   
   if (error || !session?.access_token) {
     console.error('❌ No valid session found:', error)
     throw new Error('Authentication required. Please log in again.')
   }
-  
-  return session.access_token
+
+  return { token: session.access_token, session };
 }
 
 // Upload file to Wasabi via Edge Function
@@ -77,7 +77,7 @@ export const uploadToWasabi = async (file: File, userId: string): Promise<{ file
     }
 
     // Get current session token
-    const token = await getSessionToken()
+    const { token } = await getSessionToken();
 
     // Create form data
     const formData = new FormData()
@@ -114,7 +114,7 @@ export const generateSignedUrl = async (fileKey: string, expiresIn: number = 360
     console.log('🔗 Generating signed URL via Edge Function:', fileKey)
     
     // Get current session token
-    const token = await getSessionToken()
+    const { token } = await getSessionToken();
     
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-signed-url`
     const headers = {
@@ -151,7 +151,7 @@ export const generateDownloadUrl = async (fileKey: string, fileName: string, exp
     console.log('📥 Generating download URL via Edge Function:', fileKey)
     
     // Get current session token
-    const token = await getSessionToken()
+    const { token } = await getSessionToken();
     
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-signed-url`
     const headers = {
@@ -189,7 +189,7 @@ export const deleteFromWasabi = async (fileKey: string): Promise<boolean> => {
     console.log('🗑️ Deleting file via Edge Function:', fileKey)
     
     // Get current session token
-    const token = await getSessionToken()
+    const { token } = await getSessionToken();
     
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-file`
     const headers = {

@@ -1,6 +1,8 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { User } from '../../lib/supabase';
+import { Profile } from '../../lib/supabase';
 import {
   Home,
   FileText,
@@ -17,12 +19,14 @@ import {
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  currentUser: User | null;
+  currentProfile: Profile | null;
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = true, onClose }) => {
-  const { user } = useAuth();
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, currentUser, currentProfile, isOpen = true, onClose }) => {
+  const { } = useAuth(); // No direct use of user from context
   const { t } = useLanguage();
 
   const studentTabs = [
@@ -42,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = tru
     { id: 'export', label: 'Export Data', icon: Download },
   ];
 
-  const tabs = user?.role === 'admin' ? adminTabs : studentTabs;
+  const tabs = currentUser?.role === 'admin' ? adminTabs : studentTabs;
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);

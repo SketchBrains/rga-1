@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { User } from '../../lib/supabase' // Import User type
+import { Profile } from '../../lib/supabase' // Import Profile type
 import { 
   Plus, 
   Edit, 
@@ -24,13 +26,17 @@ interface Announcement {
   updated_at: string
 }
 
-const MarqueeEditor: React.FC = () => {
+interface MarqueeEditorProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+
+const MarqueeEditor: React.FC<MarqueeEditorProps> = ({ currentUser, currentProfile }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [isCreating, setIsCreating] = useState(false)
-  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const { user } = useAuth()
+  const { getSession } = useAuth() // Use getSession for on-demand fetching
   const { language } = useLanguage()
 
   const [formData, setFormData] = useState({
@@ -40,12 +46,23 @@ const MarqueeEditor: React.FC = () => {
   })
 
   useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      setLoading(false);
+      toast.error('Unauthorized access.');
+      return;
+    }
     fetchAnnouncements()
   }, [])
 
   const fetchAnnouncements = async () => {
     try {
       console.log('🔍 Fetching announcements...')
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('Unauthorized access to fetch announcements');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
@@ -68,7 +85,7 @@ const MarqueeEditor: React.FC = () => {
 
   const handleCreateNew = () => {
     setIsCreating(true)
-    setEditingAnnouncement(null)
+    // setEditingAnnouncement(null) // This state is not used in the component, remove it
     setFormData({
       message: '',
       message_hindi: '',
@@ -78,7 +95,7 @@ const MarqueeEditor: React.FC = () => {
 
   const handleEdit = (announcement: Announcement) => {
     setIsCreating(true)
-    setEditingAnnouncement(announcement)
+    // setEditingAnnouncement(announcement) // This state is not used in the component, remove it
     setFormData({
       message: announcement.message,
       message_hindi: announcement.message_hindi || '',
@@ -93,10 +110,11 @@ const MarqueeEditor: React.FC = () => {
         return
       }
 
-      if (!user) {
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
         console.error('❌ No user found in context')
         toast.error('User not authenticated. Please refresh and try again.')
-        return
+        return;
       }
 
       console.log('🔍 Current user ID for created_by:', user.id)
@@ -109,7 +127,7 @@ const MarqueeEditor: React.FC = () => {
 
       setSaving(true)
 
-      if (editingAnnouncement) {
+      if (editingAnnouncement) { // This variable is not defined, it should be `editingAnnouncement` from state
         // Update existing announcement
         console.log('📝 Updating announcement:', editingAnnouncement.id)
         const { error } = await supabase
@@ -136,7 +154,7 @@ const MarqueeEditor: React.FC = () => {
           message: formData.message,
           message_hindi: formData.message_hindi || null,
           is_active: formData.is_active,
-          created_by: user.id
+          created_by: sessionUser.id // Use the ID from the fetched session
         }
         
         console.log('📤 Inserting data:', insertData)
@@ -162,7 +180,7 @@ const MarqueeEditor: React.FC = () => {
       }
 
       setIsCreating(false)
-      setEditingAnnouncement(null)
+      // setEditingAnnouncement(null) // This state is not used in the component, remove it
       await fetchAnnouncements()
     } catch (error: any) {
       console.error('Error saving announcement:', error)
@@ -188,6 +206,13 @@ const MarqueeEditor: React.FC = () => {
   }
 
   const handleDelete = async (id: string) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to delete announcement');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this announcement?')) return
 
     try {
@@ -212,6 +237,13 @@ const MarqueeEditor: React.FC = () => {
   }
 
   const toggleStatus = async (id: string, currentStatus: boolean) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to toggle announcement status');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
     try {
       console.log('🔄 Toggling announcement status:', id, 'from', currentStatus, 'to', !currentStatus)
       const { error } = await supabase

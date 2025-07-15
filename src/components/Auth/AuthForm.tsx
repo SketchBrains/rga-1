@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 
 interface AuthFormProps {
   onBackToLanding: () => void
+  onAuthSuccess: () => void
 }
 
 type AuthStep = 'login' | 'signup-request-otp' | 'signup-verify-otp' | 'forgot-password'
@@ -20,7 +21,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
     signupPassword: '',
     confirmSignupPassword: '',
     otp: '',
-  })
+  });
+  const [authSuccessHandled, setAuthSuccessHandled] = useState(false);
 
   const { 
     signIn, 
@@ -69,6 +71,11 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
 
     try {
       await signIn(formData.email, formData.password)
+      if (!authSuccessHandled) {
+        setAuthSuccessHandled(true);
+        onAuthSuccess(); // Trigger session fetch in App.tsx
+      }
+      
       toast.success('Welcome back!')
     } catch (error: any) {
       // Enhanced error handling for login
@@ -125,6 +132,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ onBackToLanding }) => {
       
       if (result.user && !result.session) {
         console.log('📨 OTP should be sent, moving to verification step')
+        if (!authSuccessHandled) {
+          setAuthSuccessHandled(true);
+          onAuthSuccess(); // Trigger session fetch in App.tsx
+        }
         setCurrentStep('signup-verify-otp')
         toast.success(language === 'hindi' ? 'OTP आपके ईमेल पर भेजा गया!' : 'OTP sent to your email!')
       } else {

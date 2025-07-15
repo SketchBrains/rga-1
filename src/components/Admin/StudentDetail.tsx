@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { useAuth } from '../../contexts/AuthContext' // Import useAuth
+import { User, Profile } from '../../lib/supabase' // Import User and Profile types
 import { generateSignedUrl, generateDownloadUrl, extractFileKeyFromUrl } from '../../lib/wasabi'
 import { 
   Search, 
@@ -26,30 +28,52 @@ import {
   ArrowLeft
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 
-const StudentDetail: React.FC = () => {
+interface StudentDetailProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+const StudentDetail: React.FC<StudentDetailProps> = ({ currentUser, currentProfile }) => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [studentDetails, setStudentDetails] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [viewingDocument, setViewingDocument] = useState<any>(null)
   const [documentUrl, setDocumentUrl] = useState<string | null>(null)
   const { language } = useLanguage()
+  const { getSession } = useAuth() // Use getSession for on-demand fetching
+  const navigate = useNavigate()
+
+  // State for search results
+  const [searchResults, setSearchResults] = useState<any[]>([]);
 
   // Get student ID from URL params if navigated from application view
   useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      toast.error('Unauthorized access.');
+      navigate('/'); // Redirect to home or login
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search)
     const studentId = urlParams.get('id')
     if (studentId) {
       fetchStudentById(studentId)
     }
-  }, [])
+  }, [currentUser]) // Re-run when currentUser changes
 
   const searchStudents = async () => {
     if (!searchTerm.trim()) {
       setSearchResults([])
       return
+    }
+
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to search students');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
     }
 
     setLoading(true)
@@ -76,6 +100,13 @@ const StudentDetail: React.FC = () => {
 
   const fetchStudentById = async (studentId: string) => {
     setLoading(true)
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to fetch student details');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      setLoading(false);
+      return;
+    }
     try {
       // Fetch student profile
       const { data: profile, error: profileError } = await supabase
@@ -136,6 +167,13 @@ const StudentDetail: React.FC = () => {
   }
 
   const handleViewDocument = async (document: any) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser) {
+      console.error('Unauthorized access to view document');
+      toast.error('User not authenticated. Please refresh and try again.');
+      return;
+    }
+
     try {
       let viewUrl: string
       if (document.file_key) {
@@ -155,6 +193,13 @@ const StudentDetail: React.FC = () => {
   }
 
   const handleDownloadDocument = async (document: any) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser) {
+      console.error('Unauthorized access to download document');
+      toast.error('User not authenticated. Please refresh and try again.');
+      return;
+    }
+
     try {
       let downloadUrl: string
       if (document.file_key) {

@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { supabase } from '../../lib/supabase' // Import supabase
+import { User, Profile } from '../../lib/supabase' // Import User and Profile types
+import { Session } from '@supabase/supabase-js' // Import Session type
+
 import { 
   Calendar, 
   CheckCircle, 
@@ -24,10 +27,15 @@ interface StatusStats {
   hold: number
 }
 
-const StudentHistory: React.FC = () => {
-  const { user } = useAuth()
-  const { applications, loadingApplications, fetchApplications } = useData()
+interface StudentHistoryProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+
+const StudentHistory: React.FC<StudentHistoryProps> = ({ currentUser, currentProfile }) => {
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
   const { language, t } = useLanguage()
+  const [applications, setApplications] = useState<any[]>([]);
   
   const [filteredApplications, setFilteredApplications] = useState<any[]>([])
   const [stats, setStats] = useState<StatusStats>({
@@ -41,8 +49,31 @@ const StudentHistory: React.FC = () => {
   const [yearFilter, setYearFilter] = useState('all')
 
   useEffect(() => {
-    if (user) {
+    if (!currentUser) {
+      // Handle case where user is not authenticated (e.g., redirect to login)
+      // For now, just return and show loading/empty state
+      return;
+    }
       fetchApplications()
+  }, [currentUser]) // Depend on currentUser
+
+  const fetchApplications = async () => {
+    const { session, user: sessionUser } = await getSession();
+    if (!session || !sessionUser) {
+      setApplications([]);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select(`*, scholarship_forms (title, title_hindi, education_level)`)
+        .eq('student_id', sessionUser.id)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      setApplications(data || []);
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+      toast.error('Failed to load applications.');
     }
   }, [user, fetchApplications])
 
@@ -158,7 +189,7 @@ const StudentHistory: React.FC = () => {
     </div>
   )
 
-  if (loadingApplications && applications.length === 0) {
+  if (!currentUser) { // Show loading if no user, or if applications are still loading
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

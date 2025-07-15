@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import SkeletonCard from '../common/SkeletonCard'
+import { supabase } from '../../lib/supabase' // Import supabase
+import { User, Profile } from '../../lib/supabase' // Import User and Profile types
+import { Session } from '@supabase/supabase-js' // Import Session type
 import { 
   GraduationCap, 
   Calendar, 
@@ -20,20 +22,18 @@ import {
 } from 'lucide-react'
 
 interface StudentDashboardProps {
-  onNavigate: (tab: string) => void
+  onNavigate: (tab: string) => void;
+  currentUser: User | null;
+  currentProfile: Profile | null;
 }
 
-const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
-  const { user, profile } = useAuth()
-  const { 
-    scholarshipForms, 
-    loadingScholarshipForms, 
-    fetchScholarshipForms,
-    applications,
-    loadingApplications,
-    fetchApplications
-  } = useData()
+const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate, currentUser, currentProfile }) => {
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
   const { language } = useLanguage()
+  const [scholarshipForms, setScholarshipForms] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [loadingScholarshipForms, setLoadingScholarshipForms] = useState(true);
+  const [loadingApplications, setLoadingApplications] = useState(true);
   
   const [stats, setStats] = useState({
     totalApplications: 0,
@@ -42,13 +42,57 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
     rejectedApplications: 0
   })
 
+  const fetchScholarshipForms = async () => {
+    setLoadingScholarshipForms(true);
+    try {
+      const { session } = await getSession();
+      if (!session) {
+        setScholarshipForms([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('scholarship_forms')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setScholarshipForms(data || []);
+    } catch (error) {
+      console.error('Error fetching scholarship forms:', error);
+    } finally {
+      setLoadingScholarshipForms(false);
+    }
+  };
+
+  const fetchApplications = async () => {
+    setLoadingApplications(true);
+    try {
+      const { session, user: sessionUser } = await getSession();
+      if (!session || !sessionUser) {
+        setApplications([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('applications')
+        .select(`*, scholarship_forms (title, title_hindi, education_level)`)
+        .eq('student_id', sessionUser.id)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      setApplications(data || []);
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+    } finally {
+      setLoadingApplications(false);
+    }
+  })
+
   useEffect(() => {
     if (user) {
       // Fetch data using the cached data context
       fetchScholarshipForms()
       fetchApplications()
     }
-  }, [user, fetchScholarshipForms, fetchApplications])
+  }, [currentUser, fetchScholarshipForms, fetchApplications])
 
   useEffect(() => {
     // Calculate stats from applications
@@ -120,7 +164,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
 
   if (isLoading && scholarshipForms.length === 0 && applications.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64"> {/* Keep this loading state */}
         <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600"></div>
       </div>
     )
@@ -157,10 +201,10 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate }) => {
       <div className="bg-gradient-to-r from-blue-600 to-emerald-600 rounded-xl p-6 sm:p-8 text-white">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
           <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-              {language === 'hindi' 
-                ? `नमस्ते, ${profile?.full_name || 'छात्र'}!` 
-                : `Welcome, ${profile?.full_name || 'Student'}!`}
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 truncate">
+              {language === 'hindi'
+                ? `नमस्ते, ${currentProfile?.full_name || 'छात्र'}!`
+                : `Welcome, ${currentProfile?.full_name || 'Student'}!`}
             </h1>
             <p className="text-blue-100 text-sm sm:text-lg">
               {language === 'hindi' 

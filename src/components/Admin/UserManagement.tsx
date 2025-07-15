@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { useLanguage } from '../../contexts/LanguageContext'
+import { useLanguage } from '../../contexts/LanguageContext' // Keep for t()
+import { User, Profile } from '../../lib/supabase' // Import User and Profile types
 import { 
   Users, 
   Search, 
@@ -20,6 +21,11 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+interface UserManagementProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+
 interface UserWithProfile {
   id: string
   email: string
@@ -36,9 +42,8 @@ interface UserWithProfile {
 }
 
 const UserManagement: React.FC = () => {
-  const { user } = useAuth()
-  const { language } = useLanguage()
-  const [users, setUsers] = useState<UserWithProfile[]>([])
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
+  const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserWithProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -46,10 +51,16 @@ const UserManagement: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<UserWithProfile | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [updating, setUpdating] = useState(false)
+  const { currentUser, currentProfile } = ({} as UserManagementProps); // Destructure props
 
   useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      setLoading(false);
+      toast.error('Unauthorized access.');
+      return;
+    }
     fetchUsers()
-  }, [])
+  }, [currentUser]) // Re-run when currentUser changes
 
   useEffect(() => {
     filterUsers()
@@ -57,6 +68,13 @@ const UserManagement: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('Unauthorized access to fetch users');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('users')
         .select(`
@@ -98,7 +116,14 @@ const UserManagement: React.FC = () => {
   }
 
   const handleUpdateUserRole = async (userId: string, newRole: 'student' | 'admin') => {
-    if (userId === user?.id) {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to update user role');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
+    if (userId === sessionUser.id) {
       toast.error('You cannot change your own role')
       return
     }
@@ -126,6 +151,13 @@ const UserManagement: React.FC = () => {
   }
 
   const handleToggleVerification = async (userId: string, currentStatus: boolean) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to toggle verification');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
     try {
       setUpdating(true)
       const { error } = await supabase
@@ -149,7 +181,14 @@ const UserManagement: React.FC = () => {
   }
 
   const handleDeleteUser = async (userId: string, userEmail: string) => {
-    if (userId === user?.id) {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to delete user');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
+    if (userId === sessionUser.id) {
       toast.error('You cannot delete your own account')
       return
     }
@@ -345,7 +384,7 @@ const UserManagement: React.FC = () => {
                       </button>
 
                       {/* Change Role */}
-                      {userData.id !== user?.id && (
+                      {userData.id !== sessionUser.id && (
                         <button
                           onClick={() => handleUpdateUserRole(
                             userData.id, 
@@ -360,7 +399,7 @@ const UserManagement: React.FC = () => {
                       )}
 
                       {/* Delete User */}
-                      {userData.id !== user?.id && (
+                      {userData.id !== sessionUser.id && (
                         <button
                           onClick={() => handleDeleteUser(userData.id, userData.email)}
                           disabled={updating}

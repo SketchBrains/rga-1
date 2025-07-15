@@ -1,19 +1,28 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { User } from '../../lib/supabase';
+import { Profile } from '../../lib/supabase';
 import { Globe, LogOut, User, Menu } from 'lucide-react';
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  currentUser?: User | null;
+  currentProfile?: Profile | null;
 }
 
-const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { user, profile, signOut } = useAuth();
+const Header: React.FC<HeaderProps> = ({ onMenuClick, currentUser, currentProfile }) => {
+  const { signOut, getSession } = useAuth();
   const { language, setLanguage, t } = useLanguage();
 
   const handleLanguageToggle = () => {
     const newLanguage = language === 'english' ? 'hindi' : 'english';
     setLanguage(newLanguage);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    await getSession(); // Re-fetch session to update UI state
   };
 
   return (
@@ -59,22 +68,22 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               <span className="text-xs sm:text-sm font-medium text-gray-700">
                 {language === 'english' ? 'हिंदी' : 'English'}
               </span>
-            </button>
-            {user && (
+              </button>
+            {currentUser && (
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-300 rounded-full flex items-center justify-center">
                     <User className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
                   </div>
                   <div className="hidden md:block">
-                    <p className="text-xs sm:text-sm font-medium text-gray-900">
-                      {profile?.full_name || 'User'}
+                    <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
+                      {currentProfile?.full_name || 'User'}
                     </p>
-                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
-                  </div>
+                    <p className="text-xs text-gray-500 capitalize">{currentUser.role}</p>
+                  </div> 
                 </div>
                 <button
-                  onClick={signOut}
+                  onClick={handleSignOut}
                   className="p-1 sm:p-2 text-gray-400 hover:text-red-500 transition-colors"
                   title={t('nav.logout')}
                 >

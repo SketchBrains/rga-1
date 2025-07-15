@@ -3,8 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { useData } from '../../contexts/DataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { User, Profile } from '../../lib/supabase'; // Import User and Profile types
+import { Session } from '@supabase/supabase-js'; // Import Session type
+
 import { uploadToWasabi, deleteFromWasabi, generateSignedUrl, generateDownloadUrl, extractFileKeyFromUrl } from '../../lib/wasabi';
 import { 
   FileText, 
@@ -21,10 +23,15 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const StudentDocuments: React.FC = () => {
-  const { user } = useAuth();
-  const { documents, loadingDocuments, fetchDocuments } = useData();
+interface StudentDocumentsProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+
+const StudentDocuments: React.FC<StudentDocumentsProps> = ({ currentUser, currentProfile }) => {
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
   const { language, t } = useLanguage();
+  const [documents, setDocuments] = useState<any[]>([]);
   
   const [filteredDocuments, setFilteredDocuments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,10 +46,26 @@ const StudentDocuments: React.FC = () => {
     setIsClient(true);
   }, []);
 
-  useEffect(() => {
-    if (user) {
-      fetchDocuments();
+  const fetchDocuments = async () => {
+    const { session, user: sessionUser } = await getSession();
+    if (!session || !sessionUser) {
+      setDocuments([]);
+      return;
     }
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`*, applications (scholarship_forms (title, title_hindi)), form_fields (field_label, field_label_hindi)`)
+        .eq('uploaded_by', sessionUser.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setDocuments(data || []);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+  useEffect(() => {
+    if (currentUser) fetchDocuments();
   }, [user, fetchDocuments]);
 
   useEffect(() => {
@@ -93,6 +116,13 @@ const StudentDocuments: React.FC = () => {
 
     setUploadingFiles(prev => [...prev, file.name]);
 
+    const { session, user: sessionUser } = await getSession();
+    if (!session || !sessionUser) {
+      toast.error('Session expired. Please log in again.');
+      setUploadingFiles(prev => prev.filter(name => name !== file.name));
+      return;
+    }
+
     try {
       const { fileKey } = await uploadToWasabi(file, user?.id || '');
 
@@ -104,8 +134,8 @@ const StudentDocuments: React.FC = () => {
           file_name: file.name,
           file_key: fileKey,
           file_type: file.type,
-          file_size: file.size,
-          uploaded_by: user?.id,
+          file_size: file.size, // Use file.size directly
+          uploaded_by: sessionUser.id, // Use user ID from fetched session
           created_at: new Date().toISOString(),
         });
 
@@ -126,6 +156,12 @@ const StudentDocuments: React.FC = () => {
   };
 
   const handleViewDocument = async (document: any) => {
+    const { session } = await getSession();
+    if (!session) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+
     try {
       let viewUrl: string;
       if (document.file_key) {
@@ -146,6 +182,12 @@ const StudentDocuments: React.FC = () => {
   };
 
   const handleDownloadDocument = async (document: any) => {
+    const { session } = await getSession();
+    if (!session) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+
     try {
       if (!isClient) {
         console.error('Cannot download: not running in client environment');
@@ -181,6 +223,12 @@ const StudentDocuments: React.FC = () => {
   };
 
   const handleDeleteDocument = async (documentId: string, fileName: string, fileKey: string) => {
+    const { session } = await getSession();
+    if (!session) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
     try {
@@ -265,7 +313,7 @@ const StudentDocuments: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  if (loadingDocuments && documents.length === 0) {
+  if (!currentUser) { // Show loading if no user, or if documents are still loading
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { 
+  User, // Import User type
+  Profile, // Import Profile type
   Plus, 
   Edit, 
   Trash2, 
@@ -46,13 +48,20 @@ interface ScholarshipForm {
   form_fields?: FormField[] // Add this line to match the data shape from Supabase
 }
 
+interface CreateEditFormsProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
+
 const CreateEditForms: React.FC = () => {
   const [forms, setForms] = useState<any[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [editingForm, setEditingForm] = useState<ScholarshipForm | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const { user } = useAuth()
+  const [saving, setSaving] = useState(false);
+  const { getSession } = useAuth(); // Use getSession for on-demand fetching
+  // Receive currentUser and currentProfile as props
+  const { currentUser, currentProfile } = ({} as CreateEditFormsProps); // Destructure props
   const { t } = useLanguage()
 
   const [formData, setFormData] = useState<ScholarshipForm>({
@@ -90,6 +99,13 @@ const CreateEditForms: React.FC = () => {
   }, [])
 
   const fetchForms = async () => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to fetch forms');
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('scholarship_forms')
@@ -206,6 +222,15 @@ const CreateEditForms: React.FC = () => {
         }
       }
 
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('❌ No user found in context or unauthorized');
+        toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+        return;
+      }
+
+      console.log('🔍 Current user ID for created_by:', user.id)
+
       setSaving(true)
       let formId = editingForm?.id
 
@@ -300,7 +325,7 @@ const CreateEditForms: React.FC = () => {
             description_hindi: formData.description_hindi || null,
             education_level: formData.education_level,
             is_active: formData.is_active,
-            created_by: user?.id
+            created_by: sessionUser.id // Use the ID from the fetched session
           })
           .select()
           .single()
@@ -357,6 +382,13 @@ const CreateEditForms: React.FC = () => {
   }
 
   const handleDeleteForm = async (formId: string) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to delete form');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this form? This will also delete all associated applications.')) return
 
     try {
@@ -375,6 +407,13 @@ const CreateEditForms: React.FC = () => {
   }
 
   const toggleFormStatus = async (formId: string, currentStatus: boolean) => {
+    const { user: sessionUser } = await getSession();
+    if (!sessionUser || sessionUser.role !== 'admin') {
+      console.error('Unauthorized access to toggle form status');
+      toast.error('User not authenticated or unauthorized. Please refresh and try again.');
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('scholarship_forms')

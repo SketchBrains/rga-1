@@ -1,12 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase, User, Profile } from '../lib/supabase'
-import { Session, User as SupabaseUser, Subscription, AuthError } from '@supabase/supabase-js'
+import { Session, User as SupabaseUser, AuthError } from '@supabase/supabase-js'
 
-interface AuthContextType {
-  user: User | null
-  profile: Profile | null
-  session: Session | null
-  loading: boolean
+export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, fullName: string, password: string) => Promise<{ user: User | null; session: Session | null }>
   signOut: () => Promise<void>
@@ -15,8 +11,8 @@ interface AuthContextType {
   resendOtp: (email: string) => Promise<void>
   resetPassword: (email: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
-  updateLanguage: (language: 'english' | 'hindi') => Promise<void>
-  refreshSession: () => Promise<void>
+  updateLanguage: (userId: string, language: 'english' | 'hindi') => Promise<void>
+  getSession: () => Promise<{ session: Session | null; user: SupabaseUser | null; profile: Profile | null }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -30,13 +26,6 @@ export const useAuth = () => {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [hasCleanedProfiles, setHasCleanedProfiles] = useState(false) // New state to prevent duplicate cleanup
-  const mounted = useRef(true)
-
   // Utility for conditional logging
   const log = (message: string, ...args: any[]) => {
     if (process.env.NODE_ENV !== 'production') {
@@ -44,211 +33,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  // Utility for debouncing
-  const debounce = (func: () => void, wait: number) => {
-    let timeout: NodeJS.Timeout | null = null
-    return () => {
-      if (timeout) clearTimeout(timeout)
-      timeout = setTimeout(func, wait)
-    }
-  }
-
   // Utility for timeout
   const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms))
-
-  useEffect(() => {
-    mounted.current = true
-    let authSubscription: Subscription | null = null
-
-    const handleVisibilityChange = async () => {
-      if (!mounted.current) return
-      if (document.visibilityState === 'visible') {
-        log('🔁 Tab became active again, checking session...')
-        try {
-          const response = await Promise.race([
-            supabase.auth.getSession(),
-            timeout(5000)
-          ]) as { data: { session: Session | null }, error: AuthError | null }
-          const { data: { session }, error } = response
-          if (error || !session) {
-            log('❗ Session missing or error:', error?.message)
-            await refreshSession()
-          } else {
-            log('✅ Session still valid')
-            if (mounted.current) {
-              setSession(session)
-              await fetchUserData(session.user)
-            }
-          }
-        } catch (error) {
-          log('❌ Error checking session:', error)
-          await refreshSession()
-        }
-      }
-    }
-
-    const debouncedHandleVisibilityChange = debounce(handleVisibilityChange, 500)
-    document.addEventListener('visibilitychange', debouncedHandleVisibilityChange)
-
-    const initializeAuth = async () => {
-      try {
-        log('🔄 Initializing auth...')
-        const response = await Promise.race([
-          supabase.auth.getSession(),
-          timeout(5000)
-        ]) as { data: { session: Session | null }, error: AuthError | null }
-        const { data: { session }, error } = response
-        if (error) {
-          log('❌ Error getting session:', error.message)
-          if (mounted.current) {
-            setSession(null)
-            setUser(null)
-            setProfile(null)
-            setLoading(false)
-          }
-          return
-        }
-
-        log('📋 Initial session:', session?.user?.id ? 'Found' : 'None')
-        if (mounted.current) {
-          setSession(session)
-          if (session?.user) {
-            await fetchUserData(session.user)
-          } else {
-            setLoading(false)
-          }
-        }
-      } catch (error) {
-        log('❌ Error initializing auth:', error)
-        if (mounted.current) {
-          setSession(null)
-          setUser(null)
-          setProfile(null)
-          setLoading(false)
-        }
-      }
-    }
-
-    const setupAuthListener = () => {
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (!mounted.current) return
-        log('🔄 Auth state changed:', event, session?.user?.id || 'No user')
-
-        if (event === 'SIGNED_OUT' || !session) {
-          setSession(null)
-          setUser(null)
-          setProfile(null)
-          setHasCleanedProfiles(false) // Reset cleanup flag
-          setLoading(false)
-          log('👋 User signed out')
-          return
-        }
-
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          log('✅ User signed in or token refreshed, fetching data...')
-          setSession(session)
-          if (session?.user) {
-            await fetchUserData(session.user)
-          } else {
-            setLoading(false)
-          }
-        }
-      })
-
-      authSubscription = subscription
-    }
-
-    initializeAuth().then(() => {
-      if (mounted.current) {
-        setupAuthListener()
-      }
-    })
-
-    return () => {
-      mounted.current = false
-      if (authSubscription) {
-        authSubscription.unsubscribe()
-      }
-      document.removeEventListener('visibilitychange', debouncedHandleVisibilityChange)
-    }
-  }, [])
-
-  const cleanupDuplicateProfiles = async (userId: string) => {
-    if (hasCleanedProfiles) {
-      log('🧹 Skipping duplicate profile cleanup, already completed for user:', userId)
-      return true
-    }
-
+  
+  const getProfileAndUser = async (supabaseUser: SupabaseUser): Promise<{ user: User | null; profile: Profile | null }> => {
     try {
-      log('🧹 Cleaning up duplicate profiles for user:', userId)
-      
+      log('🔍 Fetching user and profile data for:', supabaseUser.id)
+
+      // Cleanup duplicate profiles (this logic can remain as it's a one-off fix)
+      let hasCleanedProfiles = false; // Local flag for this function call
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', supabaseUser.id)
         .order('created_at', { ascending: true })
 
       if (error) {
-        log('❌ Error fetching profiles for cleanup:', error)
-        return false
+        log('❌ Error fetching profiles for cleanup/fetch:', error);
+        // Continue without profile if there's an error fetching it
+      } else if (profiles && profiles.length > 1) {
+        log(`🔍 Found ${profiles.length} profiles, keeping the first one and removing duplicates`);
+        const profilesToDelete = profiles.slice(1);
+        await Promise.all(profilesToDelete.map(p => supabase.from('profiles').delete().eq('id', p.id)));
+        hasCleanedProfiles = true;
       }
 
-      if (!profiles || profiles.length <= 1) {
-        log('✅ No duplicate profiles found')
-        setHasCleanedProfiles(true)
-        return true
+      if (hasCleanedProfiles) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Give DB a moment
       }
-
-      log(`🔍 Found ${profiles.length} profiles, keeping the first one and removing duplicates`)
-      
-      const profilesToDelete = profiles.slice(1)
-      
-      const deletePromises = profilesToDelete.map(profile =>
-        supabase
-          .from('profiles')
-          .delete()
-          .eq('id', profile.id)
-          .then(({ error: deleteError }) => {
-            if (deleteError) {
-              log('❌ Error deleting duplicate profile:', deleteError)
-            } else {
-              log('✅ Deleted duplicate profile:', profile.id)
-            }
-          })
-      )
-
-      await Promise.all(deletePromises)
-      setHasCleanedProfiles(true)
-      log('✅ Completed duplicate profile cleanup')
-      return true
-    } catch (error) {
-      log('❌ Error cleaning up duplicate profiles:', error)
-      return false
-    }
-  }
-
-  const fetchUserData = async (authUser: SupabaseUser) => {
-    try {
-      log('🔍 Fetching user data for:', authUser.id)
-      
-      await cleanupDuplicateProfiles(authUser.id)
-      
-      await new Promise(resolve => setTimeout(resolve, 500))
       
       let userData = null
       let profileData = null
       let retries = 3
       
       while (retries > 0 && (!userData || !profileData)) {
-        log(`🔄 Fetching user data (attempt ${4 - retries})...`)
+        log(`🔄 Fetching user and profile data (attempt ${4 - retries})...`)
         
         try {
           const { data: userResult, error: userError } = await supabase
             .from('users')
             .select('*')
-            .eq('id', authUser.id)
+            .eq('id', supabaseUser.id)
             .maybeSingle()
 
           if (userError) {
@@ -265,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { data: profileResult, error: profileError } = await supabase
             .from('profiles')
             .select('*')
-            .eq('user_id', authUser.id)
+            .eq('user_id', supabaseUser.id)
             .maybeSingle()
 
           if (profileError) {
@@ -297,14 +122,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!userData || !profileData) {
         log('❌ Failed to fetch user data after retries')
         
-        if (userData && !profileData) {
+        if (userData && !profileData) { // User record exists, but profile is missing
           log('🔧 Attempting to create missing profile...')
-          const fullName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
+          const fullName = supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User'
           
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
-              user_id: authUser.id,
+              user_id: supabaseUser.id,
               full_name: fullName
             })
             .select()
@@ -319,14 +144,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
-        if (profileData && !userData) {
+        if (profileData && !userData) { // Profile exists, but user record is missing (less common)
           log('🔧 Attempting to create missing user record...')
           
           const { data: newUser, error: createError } = await supabase
             .from('users')
             .insert({
-              id: authUser.id,
-              email: authUser.email!,
+              id: supabaseUser.id,
+              email: supabaseUser.email!,
               role: 'student',
               language: 'english'
             })
@@ -347,14 +172,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email })
-      log('✅ Profile data fetched:', { name: profileData.full_name })
-      
-      if (mounted.current) {
-        setUser(userData)
-        setProfile(profileData)
-      }
-      
+      log('✅ User data fetched:', { id: userData.id, role: userData.role, email: userData.email });
+      log('✅ Profile data fetched:', { name: profileData.full_name });
+
+      return { user: userData, profile: profileData };
+
       log('🎉 User data set successfully:', {
         userId: userData.id,
         role: userData.role,
@@ -363,18 +185,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       log('❌ Error fetching user data:', error)
       throw error
-    } finally {
-      if (mounted.current) {
-        setLoading(false)
-      }
-      log('✅ Loading complete')
     }
-  }
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
       log('🔐 Attempting sign in for:', email)
-      setLoading(true)
       
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -392,7 +208,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       log('✅ Sign in successful')
     } catch (error) {
       log('❌ Sign in error:', error)
-      setLoading(false)
       throw error
     }
   }
@@ -563,17 +378,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         throw new Error('Failed to sign out. Please try again.')
       }
-      setHasCleanedProfiles(false) // Reset cleanup flag
       log('✅ Sign out successful')
     } catch (error) {
       log('❌ Error signing out:', error)
       throw error
     }
-  }
+  };
 
   const updateProfile = async (updates: Partial<Profile>) => {
-    if (!user) return
-    
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -581,94 +393,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated_at: new Date().toISOString()
       })
       .eq('user_id', user.id)
-
+ 
     if (error) {
       throw new Error('Failed to update profile. Please try again.')
     }
-    
-    const updatedProfile = profile ? { ...profile, ...updates } : null
-    if (mounted.current) {
-      setProfile(updatedProfile)
-    }
-  }
+  };
 
-  const updateLanguage = async (language: 'english' | 'hindi') => {
-    if (!user) return
-    
+  const updateLanguage = async (userId: string, language: 'english' | 'hindi') => {
     const { error } = await supabase
       .from('users')
       .update({ 
         language,
         updated_at: new Date().toISOString()
       })
-      .eq('id', user.id)
-
+      .eq('id', userId)
+ 
     if (error) {
       throw new Error('Failed to update language. Please try again.')
     }
-    
-    const updatedUser = { ...user, language }
-    if (mounted.current) {
-      setUser(updatedUser)
-    }
-  }
+  };
 
-  const refreshSession = async () => {
+  const getSession = async (): Promise<{ session: Session | null; user: SupabaseUser | null; profile: Profile | null }> => {
     try {
-      log('🔄 Refreshing session...')
-      
-      // First try to refresh the session
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-      
-      if (refreshError) {
-        log('❌ Session refresh failed:', refreshError.message)
-        // If refresh fails, try to get the current session
-        const { data: { session }, error: getSessionError } = await supabase.auth.getSession()
-        
-        if (getSessionError || !session?.user) {
-          log('❗ Session missing or error after refresh attempt:', getSessionError?.message || 'No session')
-          throw new Error('Session refresh failed')
-        }
-        
-        // Use the existing session if refresh failed but session exists
-        log('⚠️ Using existing session after refresh failure')
-        if (mounted.current) {
-          setSession(session)
-          await fetchUserData(session.user)
-        }
-        return
+      log('🔄 Attempting to get session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        log('❌ Error getting session:', sessionError.message);
+        return { session: null, user: null, profile: null };
       }
 
-      const { session: newSession, user } = refreshData
-      
-      if (!newSession || !user) {
-        log('❗ No session or user after refresh')
-        throw new Error('Session refresh returned invalid data')
+      if (!session) {
+        log('❗ No active session found.');
+        return { session: null, user: null, profile: null };
       }
+
+      log('✅ Session found, fetching user and profile data...');
+      const { user: userData, profile: profileData } = await getProfileAndUser(session.user);
       
-      log('✅ Session refreshed successfully')
-      if (mounted.current) {
-        setSession(newSession)
-        await fetchUserData(user)
-      }
+      return { session, user: userData, profile: profileData };
     } catch (error) {
-      log('❌ Error during session refresh:', error)
-      // Only sign out if we're sure the session is invalid
-      // Don't sign out on network errors or temporary issues
-      if (error.message?.includes('refresh') || error.message?.includes('JWT') || error.message?.includes('expired')) {
-        await signOut()
-      } else {
-        // For other errors, just log them but don't sign out
-        log('⚠️ Session refresh failed but not signing out due to error type:', error.message)
-      }
+      log('❌ Error in getSession:', error);
+      return { session: null, user: null, profile: null };
     }
-  }
+  };
 
   const value = {
-    user,
-    profile,
-    session,
-    loading,
     signIn,
     signUp,
     signOut,
@@ -678,7 +448,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetPassword,
     updateProfile,
     updateLanguage,
-    refreshSession,
+    getSession,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

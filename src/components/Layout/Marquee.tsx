@@ -1,6 +1,9 @@
 import React, { useEffect } from 'react'
-import { useData } from '../../contexts/DataContext'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { supabase } from '../../lib/supabase'
+import { User } from '../../lib/supabase'
+import { Profile } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Utility function to sanitize text content
 const sanitizeText = (text: string): string => {
@@ -13,10 +16,25 @@ const sanitizeText = (text: string): string => {
     .replace(/\//g, '&#x2F;')
 }
 
-const Marquee: React.FC = () => {
-  const { announcements, fetchAnnouncements } = useData()
-  const { language } = useLanguage()
+interface MarqueeProps {
+  currentUser: User | null;
+  currentProfile: Profile | null;
+}
 
+const Marquee: React.FC<MarqueeProps> = ({ currentUser, currentProfile }) => {
+  const [announcements, setAnnouncements] = React.useState<any[]>([]);
+  const { language } = useLanguage()
+  const { getSession } = useAuth();
+
+  const fetchAnnouncements = async () => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    if (error) console.error('Error fetching announcements:', error);
+    else setAnnouncements(data || []);
+  };
   useEffect(() => {
     fetchAnnouncements()
   }, [fetchAnnouncements])

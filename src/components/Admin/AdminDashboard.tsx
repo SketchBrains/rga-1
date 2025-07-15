@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useLanguage } from '../../contexts/LanguageContext'
+import { useLanguage } from '../../contexts/LanguageContext' // Keep for t()
+import { useAuth } from '../../contexts/AuthContext' // Keep for getSession
+import { User, Profile } from '../../lib/supabase' // Import types
 import { 
   Users, 
   FileText, 
   CheckCircle, 
+  XCircle, // Keep for XCircle
   XCircle, 
   AlertCircle,
   TrendingUp,
@@ -17,13 +20,16 @@ import {
 } from 'lucide-react'
 
 interface AdminDashboardProps {
-  onNavigate: (tab: string) => void
+  onNavigate: (tab: string) => void;
+  currentUser: User | null;
+  currentProfile: Profile | null;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, currentUser, currentProfile }) => {
   const [stats, setStats] = useState({
     totalApplications: 0,
     pendingApplications: 0,
+    approvedApplications: 0, // Keep for approvedApplications
     approvedApplications: 0,
     rejectedApplications: 0,
     holdApplications: 0,
@@ -32,10 +38,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
     activeForms: 0,
   })
   const [recentApplications, setRecentApplications] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const { t } = useLanguage()
+  const [loading, setLoading] = useState(true);
+  const { t } = useLanguage(); // For translations
+  const { getSession } = useAuth(); // For on-demand session fetching
 
   useEffect(() => {
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+    // Fetch data only if currentUser is available
     fetchStats()
     fetchRecentApplications()
   }, [])
@@ -43,6 +55,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
   const fetchStats = async () => {
     try {
       // Get total applications
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('Unauthorized access to admin stats');
+        setLoading(false);
+        return;
+      }
+
       const { count: totalApplications } = await supabase
         .from('applications')
         .select('*', { count: 'exact', head: true })
@@ -107,6 +126,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
 
   const fetchRecentApplications = async () => {
     try {
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('Unauthorized access to recent applications');
+        setRecentApplications([]);
+        return;
+      }
+
       // First, get applications with basic info
       const { data: applications, error: appsError } = await supabase
         .from('applications')
@@ -376,7 +402,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
           <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
             <Clock className="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-green-600" />
             Recent Applications
-          </h3>
+          </h3> 
           <div className="space-y-3 sm:space-y-4">
             {recentApplications.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-gray-500">
