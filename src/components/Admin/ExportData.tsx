@@ -35,7 +35,6 @@ const ExportData: React.FC<ExportDataProps> = ({ currentUser, currentProfile }) 
   const [stats, setStats] = useState({ totalApplications: 0, pendingApplications: 0, approvedApplications: 0, rejectedApplications: 0 });
   const { t } = useLanguage();
   const { getSession } = useAuth(); // Use getSession for on-demand fetching
-  const { t } = useLanguage()
 
   const [filters, setFilters] = useState<ExportFilters>({
     formId: 'all',
