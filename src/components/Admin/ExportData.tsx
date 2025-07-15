@@ -57,13 +57,13 @@ const ExportData: React.FC<ExportDataProps> = ({ currentUser, currentProfile }) 
 
   const fetchForms = async () => {
     try {
-      const { data, error } = await supabase
-        const { user: sessionUser } = await getSession();
-        if (!sessionUser || sessionUser.role !== 'admin') {
-          console.error('Unauthorized access to fetch forms');
-          return;
-        }
+      const { user: sessionUser } = await getSession();
+      if (!sessionUser || sessionUser.role !== 'admin') {
+        console.error('Unauthorized access to fetch forms');
+        return;
+      }
 
+      const { data, error } = await supabase
         .from('scholarship_forms')
         .select('id, title')
         .order('title')

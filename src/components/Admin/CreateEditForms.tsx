@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { useAuth } from '../../contexts/AuthContext'
-import { User, File as Profile, Plus, Edit, Trash2, Save, X, GripVertical, Type, Hash, Mail, Phone, Calendar, FileText, List, AlignLeft, Eye, EyeOff } from 'lucide-react'id?: string
+import { Plus, Edit, Trash2, Save, X, GripVertical, Type, Hash, Mail, Phone, Calendar, FileText, List, AlignLeft, Eye, EyeOff } from 'lucide-react'
+import { User, Profile } from '../../lib/supabase'
+import toast from 'react-hot-toast'
+
+interface FormField {
   field_name: string
   field_label: string
   field_label_hindi: string

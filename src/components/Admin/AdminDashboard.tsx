@@ -7,7 +7,6 @@ import {
   Users, 
   FileText, 
   CheckCircle, 
-  XCircle, // Keep for XCircle
   XCircle, 
   AlertCircle,
   TrendingUp,
