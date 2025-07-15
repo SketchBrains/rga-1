@@ -84,10 +84,10 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onNavigate, current
     } finally {
       setLoadingApplications(false);
     }
-  })
+  }
 
   useEffect(() => {
-    if (user) {
+    if (currentUser) {
       // Fetch data using the cached data context
       fetchScholarshipForms()
       fetchApplications()
