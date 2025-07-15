@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 interface CacheEntry<T> {
   data: T
@@ -9,37 +10,24 @@ interface CacheEntry<T> {
 }
 
 interface DataContextType {
-  // Scholarship forms
   scholarshipForms: any[]
   loadingScholarshipForms: boolean
   fetchScholarshipForms: () => Promise<void>
-  
-  // Applications
   applications: any[]
   loadingApplications: boolean
   fetchApplications: () => Promise<void>
-  
-  // Documents
   documents: any[]
   loadingDocuments: boolean
   fetchDocuments: () => Promise<void>
-  
-  // Admin data
   allApplications: any[]
   loadingAllApplications: boolean
   fetchAllApplications: () => Promise<void>
-  
-  // Forms for admin
   adminForms: any[]
   loadingAdminForms: boolean
   fetchAdminForms: () => Promise<void>
-  
-  // Announcements
   announcements: any[]
   loadingAnnouncements: boolean
   fetchAnnouncements: () => Promise<void>
-  
-  // Cache management
   clearCache: () => void
   refreshData: () => Promise<void>
 }
@@ -58,24 +46,19 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 const cache = new Map<string, CacheEntry<any>>()
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, signOut } = useAuth()
-  
+  const { user, session, signOut, refreshSession } = useAuth()
+
   // State for all cached data
   const [scholarshipForms, setScholarshipForms] = useState<any[]>([])
   const [loadingScholarshipForms, setLoadingScholarshipForms] = useState(false)
-  
   const [applications, setApplications] = useState<any[]>([])
   const [loadingApplications, setLoadingApplications] = useState(false)
-  
   const [documents, setDocuments] = useState<any[]>([])
   const [loadingDocuments, setLoadingDocuments] = useState(false)
-  
   const [allApplications, setAllApplications] = useState<any[]>([])
   const [loadingAllApplications, setLoadingAllApplications] = useState(false)
-  
   const [adminForms, setAdminForms] = useState<any[]>([])
   const [loadingAdminForms, setLoadingAdminForms] = useState(false)
-  
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(false)
 
@@ -83,14 +66,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isCacheValid = (key: string): boolean => {
     const cached = cache.get(key)
     if (!cached) return false
-    return (Date.now() - cached.timestamp) < CACHE_DURATION
+    return Date.now() - cached.timestamp < CACHE_DURATION
   }
 
   // Helper function to check if error is authentication-related
   const isAuthError = (error: any): boolean => {
     if (!error) return false
-    
-    // Check for common authentication error indicators
     const authErrorMessages = [
       'JWT expired',
       'Invalid JWT',
@@ -100,23 +81,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'Session not found',
       'User not authenticated'
     ]
-    
     const errorMessage = error.message?.toLowerCase() || ''
     const isJWTError = authErrorMessages.some(msg => errorMessage.includes(msg.toLowerCase()))
     const isStatusUnauthorized = error.status === 401 || error.code === 401
     const isAuthCode = error.code === 'PGRST301' || error.code === 'PGRST302'
-    
     return isJWTError || isStatusUnauthorized || isAuthCode
   }
 
-  // Helper function to get from cache or fetch
+  // Helper function to get from cache or fetch with retry on auth error
   const getCachedOrFetch = async <T,>(
     key: string,
     fetchFn: () => Promise<T>,
     setData: (data: T) => void,
     setLoading: (loading: boolean) => void
   ): Promise<void> => {
-    // Check if we have valid cached data
     if (isCacheValid(key)) {
       const cached = cache.get(key)
       if (cached && !cached.loading) {
@@ -126,48 +104,58 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Check if already loading
     const cached = cache.get(key)
     if (cached?.loading) {
       console.log(`Already loading ${key}, skipping...`)
       return
     }
 
-    try {
-      setLoading(true)
-      
-      // Mark as loading in cache
-      cache.set(key, { data: [], timestamp: Date.now(), loading: true })
-      
-      const data = await fetchFn()
-      
-      // Update cache and state
-      cache.set(key, { data, timestamp: Date.now(), loading: false })
-      setData(data)
-    } catch (error) {
-      console.error(`Error fetching ${key}:`, error)
-      
-      // Check if this is an authentication error
-      if (isAuthError(error)) {
-        console.log('🔐 Authentication error detected, signing out user...')
-        try {
-          await signOut()
-        } catch (signOutError) {
-          console.error('Error during sign out:', signOutError)
-        }
+    let retries = 1
+    let lastError: any
+
+    while (retries >= 0) {
+      try {
+        setLoading(true)
+        cache.set(key, { data: [], timestamp: Date.now(), loading: true })
+
+        const data = await fetchFn()
+        cache.set(key, { data, timestamp: Date.now(), loading: false })
+        setData(data)
         return
+      } catch (error) {
+        console.error(`Error fetching ${key}:`, error)
+        lastError = error
+
+        if (isAuthError(error) && retries > 0) {
+          console.log('🔐 Authentication error detected, attempting to refresh session...')
+          try {
+            await refreshSession()
+            retries--
+            continue
+          } catch (refreshError) {
+            console.error('Error refreshing session:', refreshError)
+            await signOut()
+            return
+          }
+        }
+
+        cache.delete(key)
+        break
+      } finally {
+        setLoading(false)
       }
-      
-      // Remove loading state from cache on error
-      cache.delete(key)
-    } finally {
-      setLoading(false)
     }
+
+    if (isAuthError(lastError)) {
+      console.log('🔐 Authentication error persisted after retry, signing out...')
+      await signOut()
+    }
+    throw lastError
   }
 
   // Fetch scholarship forms
   const fetchScholarshipForms = useCallback(async () => {
-    if (!user) return
+    if (!user || !session) return
 
     await getCachedOrFetch(
       'scholarshipForms',
@@ -184,11 +172,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setScholarshipForms,
       setLoadingScholarshipForms
     )
-  }, [user])
+  }, [user, session])
 
   // Fetch user applications
   const fetchApplications = useCallback(async () => {
-    if (!user) return
+    if (!user || !session) return
 
     await getCachedOrFetch(
       `applications_${user.id}`,
@@ -208,11 +196,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setApplications,
       setLoadingApplications
     )
-  }, [user])
+  }, [user, session])
 
   // Fetch user documents
   const fetchDocuments = useCallback(async () => {
-    if (!user) return
+    if (!user || !session) return
 
     await getCachedOrFetch(
       `documents_${user.id}`,
@@ -235,16 +223,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setDocuments,
       setLoadingDocuments
     )
-  }, [user])
+  }, [user, session])
 
   // Fetch all applications (admin)
   const fetchAllApplications = useCallback(async () => {
-    if (!user || user.role !== 'admin') return
+    if (!user || !session || user.role !== 'admin') return
 
     await getCachedOrFetch(
       'allApplications',
       async () => {
-        // First, get applications with basic info
         const { data: applications, error: appsError } = await supabase
           .from('applications')
           .select(`
@@ -254,12 +241,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .order('submitted_at', { ascending: false })
 
         if (appsError) throw appsError
-
         if (!applications || applications.length === 0) {
           return []
         }
 
-        // Then get user and profile data separately
         const userIds = applications.map(app => app.student_id)
         const [usersResult, profilesResult] = await Promise.allSettled([
           supabase
@@ -275,7 +260,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const users = usersResult.status === 'fulfilled' ? usersResult.value.data || [] : []
         const profiles = profilesResult.status === 'fulfilled' ? profilesResult.value.data || [] : []
 
-        // Combine the data
         const enrichedApplications = applications.map(app => {
           const user = users.find(u => u.id === app.student_id)
           const profile = profiles.find(p => p.user_id === app.student_id)
@@ -298,11 +282,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAllApplications,
       setLoadingAllApplications
     )
-  }, [user])
+  }, [user, session])
 
   // Fetch admin forms
   const fetchAdminForms = useCallback(async () => {
-    if (!user || user.role !== 'admin') return
+    if (!user || !session || user.role !== 'admin') return
 
     await getCachedOrFetch(
       'adminForms',
@@ -321,7 +305,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAdminForms,
       setLoadingAdminForms
     )
-  }, [user])
+  }, [user, session])
 
   // Fetch announcements
   const fetchAnnouncements = useCallback(async () => {
@@ -356,8 +340,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Refresh all data
   const refreshData = useCallback(async () => {
     clearCache()
-    
-    if (user) {
+    if (user && session) {
       await Promise.all([
         fetchScholarshipForms(),
         fetchApplications(),
@@ -368,33 +351,115 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       await fetchAnnouncements()
     }
-  }, [user, fetchScholarshipForms, fetchApplications, fetchDocuments, fetchAnnouncements, fetchAllApplications, fetchAdminForms])
+  }, [user, session, fetchScholarshipForms, fetchApplications, fetchDocuments, fetchAnnouncements, fetchAllApplications, fetchAdminForms])
+
+  // Real-time subscription setup
+  useEffect(() => {
+    if (!session) return
+
+    const subscriptions: RealtimeChannel[] = []
+
+    // Scholarship forms subscription
+    const scholarshipFormsSub = supabase
+      .channel('scholarship_forms')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scholarship_forms' }, () => {
+        console.log('Scholarship forms changed, refreshing...')
+        fetchScholarshipForms()
+      })
+      .subscribe()
+
+    // Applications subscription
+    const applicationsSub = user
+      ? supabase
+          .channel(`applications_${user.id}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'applications', filter: `student_id=eq.${user.id}` }, () => {
+            console.log('Applications changed, refreshing...')
+            fetchApplications()
+          })
+          .subscribe()
+      : null
+
+    // Documents subscription
+    const documentsSub = user
+      ? supabase
+          .channel(`documents_${user.id}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'documents', filter: `uploaded_by=eq.${user.id}` }, () => {
+            console.log('Documents changed, refreshing...')
+            fetchDocuments()
+          })
+          .subscribe()
+      : null
+
+    // Announcements subscription
+    const announcementsSub = supabase
+      .channel('announcements')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+        console.log('Announcements changed, refreshing...')
+        fetchAnnouncements()
+      })
+      .subscribe()
+
+    // Admin subscriptions
+    let allApplicationsSub: RealtimeChannel | null = null
+    let adminFormsSub: RealtimeChannel | null = null
+    if (user?.role === 'admin') {
+      allApplicationsSub = supabase
+        .channel('all_applications')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+          console.log('All applications changed, refreshing...')
+          fetchAllApplications()
+        })
+        .subscribe()
+
+      adminFormsSub = supabase
+        .channel('admin_forms')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'scholarship_forms' }, () => {
+          console.log('Admin forms changed, refreshing...')
+          fetchAdminForms()
+        })
+        .subscribe()
+    }
+
+    subscriptions.push(scholarshipFormsSub, announcementsSub)
+    if (applicationsSub) subscriptions.push(applicationsSub)
+    if (documentsSub) subscriptions.push(documentsSub)
+    if (allApplicationsSub) subscriptions.push(allApplicationsSub)
+    if (adminFormsSub) subscriptions.push(adminFormsSub)
+
+    return () => {
+      subscriptions.forEach(sub => sub.unsubscribe())
+      supabase.removeAllChannels()
+    }
+  }, [user, session, fetchScholarshipForms, fetchApplications, fetchDocuments, fetchAnnouncements, fetchAllApplications, fetchAdminForms])
+
+  // Fetch data when user or session changes
+  useEffect(() => {
+    if (session) {
+      refreshData()
+    } else {
+      clearCache()
+    }
+  }, [user, session, refreshData])
 
   const value = {
     scholarshipForms,
     loadingScholarshipForms,
     fetchScholarshipForms,
-    
     applications,
     loadingApplications,
     fetchApplications,
-    
     documents,
     loadingDocuments,
     fetchDocuments,
-    
     allApplications,
     loadingAllApplications,
     fetchAllApplications,
-    
     adminForms,
     loadingAdminForms,
     fetchAdminForms,
-    
     announcements,
     loadingAnnouncements,
     fetchAnnouncements,
-    
     clearCache,
     refreshData,
   }
