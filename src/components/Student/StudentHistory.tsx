@@ -75,7 +75,7 @@ const StudentHistory: React.FC<StudentHistoryProps> = ({ currentUser, currentPro
       console.error('Error fetching applications:', error);
       toast.error('Failed to load applications.');
     }
-  }, [user, fetchApplications])
+  }
 
   useEffect(() => {
     filterApplications()
