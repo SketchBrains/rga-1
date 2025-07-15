@@ -79,13 +79,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'Authentication required',
       'Invalid token',
       'Session not found',
-      'User not authenticated'
+      'User not authenticated',
+      'session has expired',
+      'Invalid or expired session'
     ]
     const errorMessage = error.message?.toLowerCase() || ''
     const isJWTError = authErrorMessages.some(msg => errorMessage.includes(msg.toLowerCase()))
     const isStatusUnauthorized = error.status === 401 || error.code === 401
     const isAuthCode = error.code === 'PGRST301' || error.code === 'PGRST302'
-    return isJWTError || isStatusUnauthorized || isAuthCode
+    const isSessionExpired = error.code === 'SESSION_EXPIRED'
+    return isJWTError || isStatusUnauthorized || isAuthCode || isSessionExpired
   }
 
   // Helper function to get from cache or fetch with retry on auth error
@@ -130,11 +133,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('🔐 Authentication error detected, attempting to refresh session...')
           try {
             await refreshSession()
+            // Wait a bit for the session to be updated
+            await new Promise(resolve => setTimeout(resolve, 1000))
             retries--
             continue
           } catch (refreshError) {
             console.error('Error refreshing session:', refreshError)
-            await signOut()
+            // Only sign out if refresh explicitly failed due to auth issues
+            if (refreshError.message?.includes('refresh') || refreshError.message?.includes('JWT')) {
+              await signOut()
+            }
             return
           }
         }
@@ -148,7 +156,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isAuthError(lastError)) {
       console.log('🔐 Authentication error persisted after retry, signing out...')
-      await signOut()
+      try {
+        await signOut()
+      } catch (signOutError) {
+        console.error('Error during sign out:', signOutError)
+        // Force reload if sign out fails
+        window.location.reload()
+      }
     }
     throw lastError
   }

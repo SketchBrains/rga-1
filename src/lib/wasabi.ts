@@ -11,6 +11,39 @@ const generateFileKey = (fileName: string, userId: string): string => {
   return `documents/${userId}/${timestamp}_${randomString}_${sanitizedFileName}`
 }
 
+// Helper function to handle Edge Function errors
+const handleEdgeFunctionError = (result: any, operation: string) => {
+  if (!result.success) {
+    const error = new Error(result.error || `${operation} failed`)
+    
+    // Add error code for better handling
+    if (result.code) {
+      (error as any).code = result.code
+    }
+    
+    // Handle session expiration specifically
+    if (result.code === 'SESSION_EXPIRED') {
+      console.error('🔐 Session expired during', operation)
+      // The AuthContext will handle this through the error boundary
+      throw new Error('Your session has expired. Please log in again.')
+    }
+    
+    throw error
+  }
+}
+
+// Get current session token for Edge Function calls
+const getSessionToken = async (): Promise<string> => {
+  const { data: { session }, error } = await supabase.auth.getSession()
+  
+  if (error || !session?.access_token) {
+    console.error('❌ No valid session found:', error)
+    throw new Error('Authentication required. Please log in again.')
+  }
+  
+  return session.access_token
+}
+
 // Upload file to Wasabi via Edge Function
 export const uploadToWasabi = async (file: File, userId: string): Promise<{ fileKey: string }> => {
   try {
@@ -43,15 +76,17 @@ export const uploadToWasabi = async (file: File, userId: string): Promise<{ file
       throw new Error('File type not supported. Please upload PDF, DOC, DOCX, images, or text files.')
     }
 
+    // Get current session token
+    const token = await getSessionToken()
+
     // Create form data
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('userId', userId)
 
-    // Call Edge Function
+    // Call Edge Function with authentication
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-file`
     const headers = {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
     }
 
     const response = await fetch(apiUrl, {
@@ -61,10 +96,9 @@ export const uploadToWasabi = async (file: File, userId: string): Promise<{ file
     })
 
     const result = await response.json()
-
-    if (!result.success) {
-      throw new Error(result.error || 'Upload failed')
-    }
+    
+    // Handle Edge Function errors
+    handleEdgeFunctionError(result, 'upload')
 
     console.log('✅ File uploaded successfully via Edge Function:', result.fileKey)
     return { fileKey: result.fileKey }
@@ -79,9 +113,12 @@ export const generateSignedUrl = async (fileKey: string, expiresIn: number = 360
   try {
     console.log('🔗 Generating signed URL via Edge Function:', fileKey)
     
+    // Get current session token
+    const token = await getSessionToken()
+    
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-signed-url`
     const headers = {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
 
@@ -97,9 +134,8 @@ export const generateSignedUrl = async (fileKey: string, expiresIn: number = 360
 
     const result = await response.json()
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to generate signed URL')
-    }
+    // Handle Edge Function errors
+    handleEdgeFunctionError(result, 'generate signed URL')
 
     console.log('✅ Signed URL generated successfully via Edge Function')
     return result.signedUrl
@@ -114,9 +150,12 @@ export const generateDownloadUrl = async (fileKey: string, fileName: string, exp
   try {
     console.log('📥 Generating download URL via Edge Function:', fileKey)
     
+    // Get current session token
+    const token = await getSessionToken()
+    
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-signed-url`
     const headers = {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
 
@@ -133,9 +172,8 @@ export const generateDownloadUrl = async (fileKey: string, fileName: string, exp
 
     const result = await response.json()
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to generate download URL')
-    }
+    // Handle Edge Function errors
+    handleEdgeFunctionError(result, 'generate download URL')
 
     console.log('✅ Download URL generated successfully via Edge Function')
     return result.signedUrl
@@ -150,9 +188,12 @@ export const deleteFromWasabi = async (fileKey: string): Promise<boolean> => {
   try {
     console.log('🗑️ Deleting file via Edge Function:', fileKey)
     
+    // Get current session token
+    const token = await getSessionToken()
+    
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-file`
     const headers = {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
 
@@ -166,15 +207,20 @@ export const deleteFromWasabi = async (fileKey: string): Promise<boolean> => {
 
     const result = await response.json()
 
-    if (!result.success) {
-      console.warn('⚠️ Delete failed via Edge Function:', result.error)
-      return false
-    }
+    // Handle Edge Function errors
+    handleEdgeFunctionError(result, 'delete file')
 
     console.log('✅ File deleted successfully via Edge Function')
     return true
   } catch (error) {
     console.error('❌ Error deleting via Edge Function:', error)
+    
+    // For delete operations, we might want to be more lenient
+    // If it's a session error, throw it, otherwise just return false
+    if (error.message?.includes('session has expired') || error.message?.includes('Authentication required')) {
+      throw error
+    }
+    
     return false
   }
 }
@@ -243,11 +289,13 @@ export const getFileMetadata = async (fileKey: string): Promise<any> => {
 
 // Export configuration info (without sensitive data)
 export const wasabiConfig = {
-  message: 'Wasabi integration now secured via Supabase Edge Functions',
+  message: 'Wasabi integration now secured via Supabase Edge Functions with session validation',
   features: [
     'Secure credential handling',
     'Server-side file operations',
+    'Session validation and authentication',
+    'File ownership verification',
     'Presigned URL generation',
-    'File upload/download/delete'
+    'File upload/download/delete with proper authorization'
   ]
 }

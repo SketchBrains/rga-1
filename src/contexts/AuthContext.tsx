@@ -616,40 +616,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshSession = async () => {
     try {
       log('🔄 Refreshing session...')
-      const response = await Promise.race([
-        supabase.auth.getSession(),
-        timeout(5000)
-      ]) as { data: { session: Session | null }, error: AuthError | null }
-      const { data: { session }, error } = response
       
-      if (error || !session?.user) {
-        log('❗ Session missing or error:', error?.message || 'No session')
-        throw new Error('Invalid session')
+      // First try to refresh the session
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+      
+      if (refreshError) {
+        log('❌ Session refresh failed:', refreshError.message)
+        // If refresh fails, try to get the current session
+        const { data: { session }, error: getSessionError } = await supabase.auth.getSession()
+        
+        if (getSessionError || !session?.user) {
+          log('❗ Session missing or error after refresh attempt:', getSessionError?.message || 'No session')
+          throw new Error('Session refresh failed')
+        }
+        
+        // Use the existing session if refresh failed but session exists
+        log('⚠️ Using existing session after refresh failure')
+        if (mounted.current) {
+          setSession(session)
+          await fetchUserData(session.user)
+        }
+        return
       }
 
-      log('✅ Session refreshed successfully')
-      const setSessionResponse = await Promise.race([
-        supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token
-        }),
-        timeout(5000)
-      ]) as { data: { user: SupabaseUser | null, session: Session | null }, error: AuthError | null }
-      const { error: setSessionError } = setSessionResponse
+      const { session: newSession, user } = refreshData
       
-      if (setSessionError) {
-        log('❌ Error setting session:', setSessionError.message)
-        throw new Error('Failed to set session')
+      if (!newSession || !user) {
+        log('❗ No session or user after refresh')
+        throw new Error('Session refresh returned invalid data')
       }
       
-      log('✅ Session state updated in Supabase client')
+      log('✅ Session refreshed successfully')
       if (mounted.current) {
-        setSession(session)
-        await fetchUserData(session.user)
+        setSession(newSession)
+        await fetchUserData(user)
       }
     } catch (error) {
       log('❌ Error during session refresh:', error)
-      await signOut()
+      // Only sign out if we're sure the session is invalid
+      // Don't sign out on network errors or temporary issues
+      if (error.message?.includes('refresh') || error.message?.includes('JWT') || error.message?.includes('expired')) {
+        await signOut()
+      } else {
+        // For other errors, just log them but don't sign out
+        log('⚠️ Session refresh failed but not signing out due to error type:', error.message)
+      }
     }
   }
 

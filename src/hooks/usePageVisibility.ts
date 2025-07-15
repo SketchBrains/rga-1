@@ -27,19 +27,48 @@ export const usePageVisibility = () => {
 /**
  * Custom hook that triggers a callback when the page becomes visible
  * Useful for refreshing data or sessions when user returns to the tab
+ * Enhanced with debouncing and error handling for session management
  */
-export const usePageVisibilityCallback = (callback: () => void, dependencies: any[] = []) => {
+export const usePageVisibilityCallback = (callback: () => Promise<void> | void, dependencies: any[] = []) => {
   const isVisible = usePageVisibility()
   const [wasVisible, setWasVisible] = useState(isVisible)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+
     // Only trigger callback when page becomes visible (not when it becomes hidden)
-    if (isVisible && !wasVisible) {
+    // and we're not already processing
+    if (isVisible && !wasVisible && !isProcessing) {
       console.log('🔄 Page became visible, triggering callback...')
-      callback()
+      
+      // Debounce the callback to prevent rapid successive calls
+      timeoutRef.current = setTimeout(async () => {
+        if (isProcessing) return
+        
+        setIsProcessing(true)
+        try {
+          await callback()
+        } catch (error) {
+          console.error('❌ Error in page visibility callback:', error)
+        } finally {
+          setIsProcessing(false)
+        }
+      }, 500) // 500ms debounce
     }
     setWasVisible(isVisible)
-  }, [isVisible, callback, ...dependencies])
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [isVisible, wasVisible, isProcessing, callback, ...dependencies])
 
   return isVisible
 }
